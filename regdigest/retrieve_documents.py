@@ -58,6 +58,7 @@ def get_documents_by_date(start_date: str,
                                                  'title', 
                                                  'type', 
                                                  'action', 
+                                                 'regulation_id_number_info', 
                                                  #'significant', 
                                                  'correction_of'),
                           endpoint_url: str = r'https://www.federalregister.gov/api/v1/documents.json?'
@@ -92,6 +93,7 @@ def get_documents_by_number(document_numbers: list,
                                              'title', 
                                              'type', 
                                              'action', 
+                                             'regulation_id_number_info', 
                                              #'significant', 
                                              'correction_of'), 
                             sorted: bool = True
@@ -112,17 +114,49 @@ def get_documents_by_number(document_numbers: list,
     return results, count
 
 
-def save_json(results, count):
-    pass
-    # create dictionary of data with retrieval date
-    dctsRules = {"source": "Federal Register API, https://www.federalregister.gov/reader-aids/developer-resources/rest-api",
-    #            "endpoint": endpoint_url,
-                "date_retrieved": f"{date.today()}",
-    #            "timeframe": timeframe,
-                "count": results,
-                "results": count
-                }
+def extract_rin_info(document: dict, 
+                     key: str = "regulation_id_number_info"):
+    
+    rin_info = document.get(key)
+    
+    tuple_list = []
+    if (len(rin_info.items())==0) or (rin_info is None):
+        n_tuple = (None, )
+    else:
+        for n in rin_info.items():
+            if n[1]:
+                n_tuple = tuple((n[0], n[1].get('priority_category'), n[1].get('issue')))
+            else:
+                n_tuple = n[0]
+                
+        tuple_list.append(n_tuple)
+        tuple_list.sort(reverse=True, key=lambda x: x[2])
+    
+    # only return RIN info from most recent Unified Agenda issue
+    return tuple_list[0]
 
+
+def create_rin_keys(document: dict, 
+                    values: tuple = None):
+    """_summary_
+
+    Args:
+        document (dict): _description_
+        values (_type_, optional): _description_. Defaults to None.
+    """    
+    document_ = document.copy()
+    
+    # source: rin_info tuples (RIN, Priority, UA issue)
+    if not values:
+        document.update({"rin": None, 
+                         "rin_priority": None}
+                        )
+    else:
+        document.update({"rin": values[0], 
+                         "rin_priority": values[1]}
+                        )
+    
+    return document
 
 
 def main(by_date: bool = True, **kwargs):
@@ -136,5 +170,12 @@ def main(by_date: bool = True, **kwargs):
         #get_documents_by_number(list(document_numbers))
         results, count = get_documents_by_number(list(kwargs))
     
+    rin_info = (extract_rin_info(doc) for doc in results)
+    for doc, rin in zip(results, rin_info):
+        create_rin_keys(doc, rin)
     
+    
+if __name__ == "__main__":
+    
+    main()
 
