@@ -1,3 +1,6 @@
+# no imports; all native python
+
+
 def extract_rin_info(document: dict, 
                      key: str = "regulation_id_number_info"):
     
