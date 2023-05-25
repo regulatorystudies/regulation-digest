@@ -565,7 +565,7 @@ def clean_agencies_column(df_input: DataFrame,
     return df
 
 
-def clean_agency_names(df: pd.DataFrame, column: str = "agency_names"):
+def clean_agency_names(df: DataFrame, column: str = "agency_names"):
     names = ("; ".join(x) for x in df[column].tolist() if x is not None)
     df.loc[:, column] = list(names)
     return df

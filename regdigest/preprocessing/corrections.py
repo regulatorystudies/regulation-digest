@@ -1,7 +1,7 @@
 from numpy import array
 from pandas import DataFrame
 
-from ..search_columns import search_columns
+from search_columns import search_columns
 
 
 def filter_corrections(df: DataFrame):
