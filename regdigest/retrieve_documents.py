@@ -12,6 +12,7 @@ Last modified: 2023-05-25
 from datetime import date
 #import webbrowser
 from pathlib import Path
+import re
 
 from numpy import array
 import pandas as pd
@@ -54,6 +55,7 @@ def query_documents_endpoint(endpoint_url: str, dict_params: dict):
 
 
 def get_documents_by_date(start_date: str, 
+                          end_date: str | None = None, 
                           fields: tuple = ('document_number', 
                                            'publication_date', 
                                            'agency_names', 
@@ -83,6 +85,9 @@ def get_documents_by_date(start_date: str,
                    'fields[]': fields, 
                    'conditions[publication_date][gte]': f"{start_date}"
                    }
+    
+    if end_date:
+        dict_params.update({'conditions[publication_date][lte]': f"{end_date}"})
 
     results, count = query_documents_endpoint(endpoint_url, dict_params)
     
@@ -104,10 +109,10 @@ def get_documents_by_number(document_numbers: list,
                                              'regulation_id_number_info', 
                                              #'significant', 
                                              'correction_of'), 
-                            sorted: bool = True
+                            sort_data: bool = True
                             ):
     
-    if sorted:
+    if sort_data:
         document_numbers_str = ",".join(sorted(document_numbers))
     else:
         document_numbers_str = ",".join(document_numbers)
@@ -122,8 +127,31 @@ def get_documents_by_number(document_numbers: list,
     return results, count
 
 
-def parse_document_numbers(path: Path, input_file: str = "input"):
-    pass
+def parse_document_numbers(path: Path, 
+                           pattern: str = r"[\w|\d]{2,4}-[\d]{5,}"):
+    
+    file = next(p for p in path.iterdir() if p.is_file())
+    if file.suffix in (".csv", ".txt", ".tsv"):
+        with open(file, "r") as f:
+            df = pd.read_csv(f)
+    elif file.suffix in (".xlsx", ".xls", ".xlsm"):
+        with open(file, "rb") as f:
+            df = pd.read_excel(f)
+    else:
+        raise ValueError("Input file must be CSV or Excel spreadsheet.")    
+    
+    if 'document_number' in df.columns:
+        document_numbers = df['document_number'].values.tolist()
+    else:
+        url_list = df['html_url'].values.tolist()
+        document_numbers = [re.search(pattern, url).group(0) for url in url_list]
+        #document_numbers = []
+        #for u in urls:
+        #    m = re.search(pattern, u)
+        #    doc_number = m.group(0)
+        #    document_numbers.append(doc_number)
+    
+    return document_numbers
 
 
 def export_data(df: pd.DataFrame, 
@@ -136,22 +164,21 @@ def export_data(df: pd.DataFrame,
     print("Exported data as csv!")
 
 
-def main(by_date: bool = True, **kwargs):
+def main(input_path: Path = None):
     
-    if by_date:
-        start_date = input("Input start date [yyyy-mm-dd]: ")    
-        results, _ = get_documents_by_date(start_date)
+    if not input_path:
+        start_date = input("Input start date [yyyy-mm-dd]: ")
+        end_date = input("Input end date [yyyy-mm-dd]: ")
+        results, _ = get_documents_by_date(start_date, end_date=end_date)
     else:
         # https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
         #document_numbers = [item for sublist in kwargs.values for item in sublist if type(sublist)==list]
         #get_documents_by_number(list(document_numbers))
-        results, _ = get_documents_by_number(list(kwargs))
+        document_numbers = parse_document_numbers(input_path) 
+        results, _ = get_documents_by_number(document_numbers)
     
     results_with_rin_info = (create_rin_keys(doc, extract_rin_info(doc)) for doc in results)
-    #print(next(results_with_rin_info))
-    #for doc, rin in zip(results, rin_info):
-    #    create_rin_keys(doc, rin)
-    
+
     df = pd.DataFrame(list(results_with_rin_info))
     df, _ = filter_corrections(df)
     df = clean_agency_names(df).set_index("document_number")
@@ -163,8 +190,14 @@ if __name__ == "__main__":
     
     p = Path(__file__)
     data_dir = p.parents[1].joinpath("data")
+    input_dir = p.parents[1].joinpath("input")
     
-    df = main()    
-    #main(by_date=False, )
-    export_data(df, data_dir)
+    get_input = input("Using input file? [y/n]")
+    
+    if get_input=="y":
+        df2 = main(input_path=input_dir)
+        export_data(df2, data_dir, file_name = "test.csv")
+    else:
+        df = main()
+        export_data(df, data_dir)
 
