@@ -1,17 +1,23 @@
 # -*- coding: utf-8 -*-
 """
-Created on Mon Jun 13 12:19:24 2022
+Mark Febrizio
 
-@author: mark
+Created: 2022-06-13
+
+Last modified: 2023-05-25
 """
 
 #%% Init
-import json
+#import json
 from datetime import date
+#import webbrowser
+from pathlib import Path
 
+from numpy import array
+import pandas as pd
 import requests
-import webbrowser
 
+from preprocessing import clean_agency_names, filter_corrections, extract_rin_info, create_rin_keys
 
 
 def query_documents_endpoint(endpoint_url: str, dict_params: dict):
@@ -48,19 +54,20 @@ def query_documents_endpoint(endpoint_url: str, dict_params: dict):
 
 
 def get_documents_by_date(start_date: str, 
-                          fields: tuple = ('publication_date', 
-                                                 'agency_names', 
-                                                 'citation', 
-                                                 'start_page', 
-                                                 'end_page', 
-                                                 'html_url', 
-                                                 'pdf_url', 
-                                                 'title', 
-                                                 'type', 
-                                                 'action', 
-                                                 'regulation_id_number_info', 
-                                                 #'significant', 
-                                                 'correction_of'),
+                          fields: tuple = ('document_number', 
+                                           'publication_date', 
+                                           'agency_names', 
+                                           'citation', 
+                                           'start_page', 
+                                           'end_page', 
+                                           'html_url', 
+                                           'pdf_url', 
+                                           'title', 
+                                           'type', 
+                                           'action', 
+                                           'regulation_id_number_info', 
+                                           #'significant', 
+                                           'correction_of'),
                           endpoint_url: str = r'https://www.federalregister.gov/api/v1/documents.json?'
                           ):
     
@@ -83,7 +90,8 @@ def get_documents_by_date(start_date: str,
 
 
 def get_documents_by_number(document_numbers: list, 
-                            fields: tuple = ('publication_date', 
+                            fields: tuple = ('document_number', 
+                                             'publication_date', 
                                              'agency_names', 
                                              'citation', 
                                              'start_page', 
@@ -114,68 +122,49 @@ def get_documents_by_number(document_numbers: list,
     return results, count
 
 
-def extract_rin_info(document: dict, 
-                     key: str = "regulation_id_number_info"):
-    
-    rin_info = document.get(key)
-    
-    tuple_list = []
-    if (len(rin_info.items())==0) or (rin_info is None):
-        n_tuple = (None, )
-    else:
-        for n in rin_info.items():
-            if n[1]:
-                n_tuple = tuple((n[0], n[1].get('priority_category'), n[1].get('issue')))
-            else:
-                n_tuple = n[0]
-                
-        tuple_list.append(n_tuple)
-        tuple_list.sort(reverse=True, key=lambda x: x[2])
-    
-    # only return RIN info from most recent Unified Agenda issue
-    return tuple_list[0]
+def parse_document_numbers(path: Path, input_file: str = "input"):
+    pass
 
 
-def create_rin_keys(document: dict, 
-                    values: tuple = None):
-    """_summary_
-
-    Args:
-        document (dict): _description_
-        values (_type_, optional): _description_. Defaults to None.
-    """    
-    document_ = document.copy()
+def export_data(df: pd.DataFrame, 
+                path: Path, 
+                file_name: str = f"federal_register_clips_{date.today()}.csv"):
     
-    # source: rin_info tuples (RIN, Priority, UA issue)
-    if not values:
-        document.update({"rin": None, 
-                         "rin_priority": None}
-                        )
-    else:
-        document.update({"rin": values[0], 
-                         "rin_priority": values[1]}
-                        )
+    with open(path / file_name, "w") as f:
+        df.to_csv(f, lineterminator="\n")
     
-    return document
+    print("Exported data as csv!")
 
 
 def main(by_date: bool = True, **kwargs):
     
     if by_date:
         start_date = input("Input start date [yyyy-mm-dd]: ")    
-        results, count = get_documents_by_date(start_date)
+        results, _ = get_documents_by_date(start_date)
     else:
         # https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
         #document_numbers = [item for sublist in kwargs.values for item in sublist if type(sublist)==list]
         #get_documents_by_number(list(document_numbers))
-        results, count = get_documents_by_number(list(kwargs))
+        results, _ = get_documents_by_number(list(kwargs))
     
-    rin_info = (extract_rin_info(doc) for doc in results)
-    for doc, rin in zip(results, rin_info):
-        create_rin_keys(doc, rin)
+    results_with_rin_info = (create_rin_keys(doc, extract_rin_info(doc)) for doc in results)
+    #print(next(results_with_rin_info))
+    #for doc, rin in zip(results, rin_info):
+    #    create_rin_keys(doc, rin)
     
+    df = pd.DataFrame(list(results_with_rin_info))
+    df, _ = filter_corrections(df)
+    df = clean_agency_names(df).set_index("document_number")
+    df = df.drop(columns=["regulation_id_number_info", "correction_of"])
+    return df
+
     
 if __name__ == "__main__":
     
-    main()
+    p = Path(__file__)
+    data_dir = p.parents[1].joinpath("data")
+    
+    df = main()    
+    #main(by_date=False, )
+    export_data(df, data_dir)
 
