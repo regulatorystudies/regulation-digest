@@ -69,13 +69,13 @@ def search_columns(df,
         dfResults = df.copy(deep=True)
         dfResults.loc[:, return_column] = 0
         dfResults.loc[filter_bool, return_column] = 1
-        print(f"Count {return_column}: {sum(dfResults[return_column].values)}")
+        #print(f"Count {return_column}: {sum(dfResults[return_column].values)}")
         return dfResults
     
     elif return_as == "filtered_df":
         # filter results
         dfResults = df.loc[filter_bool,:].copy(deep=True)
-        print(f"Count {return_column}: {len(dfResults)}")
+        #print(f"Count {return_column}: {len(dfResults)}")
         return dfResults
     
     else:
