@@ -21,7 +21,8 @@ endpoint_url = r'https://www.federalregister.gov/api/v1/documents.csv?'
 res_per_page = 1000
 sort_order = 'oldest'
 fieldsList = ['publication_date', 'agency_names', 'citation', 
-              'html_url', 'title', 'type', 
+              'start_page', 'end_page',
+              'html_url', 'pdf_url', 'title', 'type', 
               'action', 'significant', 'correction_of']
 start_date = input("Input start date [yyyy-mm-dd]: ")
 
