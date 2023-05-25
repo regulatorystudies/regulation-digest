@@ -14,8 +14,7 @@ from datetime import date
 from pathlib import Path
 import re
 
-from numpy import array
-import pandas as pd
+from pandas import DataFrame, read_csv, read_excel
 import requests
 
 from preprocessing import clean_agency_names, filter_corrections, extract_rin_info, create_rin_keys
@@ -133,10 +132,10 @@ def parse_document_numbers(path: Path,
     file = next(p for p in path.iterdir() if p.is_file())
     if file.suffix in (".csv", ".txt", ".tsv"):
         with open(file, "r") as f:
-            df = pd.read_csv(f)
+            df = read_csv(f)
     elif file.suffix in (".xlsx", ".xls", ".xlsm"):
         with open(file, "rb") as f:
-            df = pd.read_excel(f)
+            df = read_excel(f)
     else:
         raise ValueError("Input file must be CSV or Excel spreadsheet.")    
     
@@ -154,7 +153,7 @@ def parse_document_numbers(path: Path,
     return document_numbers
 
 
-def export_data(df: pd.DataFrame, 
+def export_data(df: DataFrame, 
                 path: Path, 
                 file_name: str = f"federal_register_clips_{date.today()}.csv"):
     
@@ -179,7 +178,7 @@ def main(input_path: Path = None):
     
     results_with_rin_info = (create_rin_keys(doc, extract_rin_info(doc)) for doc in results)
 
-    df = pd.DataFrame(list(results_with_rin_info))
+    df = DataFrame(list(results_with_rin_info))
     df, _ = filter_corrections(df)
     df = clean_agency_names(df).set_index("document_number")
     df = df.drop(columns=["regulation_id_number_info", "correction_of"])
@@ -191,6 +190,10 @@ if __name__ == "__main__":
     p = Path(__file__)
     data_dir = p.parents[1].joinpath("data")
     input_dir = p.parents[1].joinpath("input")
+    
+    if not (data_dir.exists() or input_dir.exists()):
+        data_dir.mkdir(parents=True, exist_ok=True)
+        input_dir.mkdir(parents=True, exist_ok=True)
     
     get_input = input("Using input file? [y/n]")
     
