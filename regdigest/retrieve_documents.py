@@ -181,27 +181,20 @@ def main(input_path: Path = None):
 
 def create_paths(input_file: bool = False):
     
-    #if input_file:
-        #p = os.path.dirname(sys.argv[0])
-        #p = Path(sys.argv[0])
-        #print(p, sys.argv[0], sep="\n")
-        #data_dir = os.path.join(p, "data")
-        #input_dir = os.path.join(p, "input")
-        #print(data_dir, input_dir)
-    #else:
+    dirs = []
     p = Path(__file__)
     data_dir = p.parents[1].joinpath("data")
-    input_dir = p.parents[1].joinpath("input")
+    dirs.append(data_dir)
     
-    if not (data_dir.exists() or input_dir.exists()):
-        try:
-            data_dir.mkdir(parents=True, exist_ok=True)
-            input_dir.mkdir(parents=True, exist_ok=True)
-        except:
-            os.makedirs(data_dir, exist_ok=True)
-            os.makedirs(input_dir, exist_ok=True)
+    if not data_dir.exists():
+        data_dir.mkdir(parents=True, exist_ok=True)
     
-    return data_dir, input_dir
+    if input_file:
+        input_dir = p.parents[1].joinpath("input")
+        input_dir.mkdir(parents=True, exist_ok=True)
+        dirs.append(input_dir)
+    
+    return dirs
 
 
 if __name__ == "__main__":
@@ -209,12 +202,11 @@ if __name__ == "__main__":
     get_input = input("Using input file? [y/n]")
     
     if get_input=="y":
-        data_dir, input_dir = create_paths() #input_file=True)
-        #print(data_dir, input_dir)
+        data_dir, input_dir = create_paths(input_file=True)
         df2 = main(input_path=input_dir)
         export_data(df2, data_dir)
     else:
-        data_dir, _ = create_paths()
+        data_dir = create_paths()[0]
         df = main()
         export_data(df, data_dir)
 
