@@ -199,7 +199,7 @@ if __name__ == "__main__":
     
     if get_input=="y":
         df2 = main(input_path=input_dir)
-        export_data(df2, data_dir, file_name = "test.csv")
+        export_data(df2, data_dir)
     else:
         df = main()
         export_data(df, data_dir)
