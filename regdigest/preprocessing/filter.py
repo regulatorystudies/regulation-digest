@@ -1,3 +1,4 @@
+import re
 from numpy import array
 from pandas import DataFrame
 
@@ -51,22 +52,28 @@ def filter_corrections(df: DataFrame):
         return df_no_corrections, df_corrections
 
 
-def filter_actions(df: DataFrame, pattern: str = None, filters: tuple | list = (), columns: tuple | list = ()):
+def filter_actions(df: DataFrame, pattern: str = None, filters: tuple[str] | list[str] = (), columns: tuple | list = ()):
     # get original column names
     cols = df.columns.tolist()
     
     if pattern:
         regex = pattern
+        print(f"used pattern: {regex}")
     else:
-        regex = [r"|".join(filters)]
+        filter_groups = (f"(?:{filter})" for filter in filters)
+        regex = fr"{'|'.join(filter_groups)}"
+        #regex = re.sub(r" ", r"\s", regex)
+        print(f"used filters: {regex}")
     
     # Searching fields
-    search = search_columns(df, regex, list(columns), 
+    search = search_columns(df, [regex], list(columns), 
                                  return_column="indicator")
     bool_search = array(search["indicator"] == 1)
+    print(list(bool_search).count(True))
     
     # filter out flagged documents
     df_filtered = df.loc[~bool_search, cols]
+    print(len(df), len(df_filtered))
     
     # return filtered results
     return df_filtered

@@ -1,6 +1,8 @@
 # project specific
-data/
+/data/
+!regdigest/data/*.json
 input/
+output/
 *.zip
 retrieve_clips_program/
 _archive/

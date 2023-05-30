@@ -4,10 +4,11 @@ Mark Febrizio
 
 Created: 2022-06-13
 
-Last modified: 2023-05-26
+Last modified: 2023-05-30
 """
 # import dependencies
 from datetime import date
+import json
 #import os
 from pathlib import Path
 import re
@@ -16,12 +17,16 @@ import re
 from pandas import DataFrame, read_csv, read_excel
 import requests
 
-from preprocessing import clean_agency_names, filter_corrections, filter_actions, extract_rin_info, create_rin_keys
+from preprocessing import (
+    clean_agency_names, get_parent_agency, 
+    filter_corrections, filter_actions, 
+    extract_rin_info, create_rin_keys, 
+    )
 
 
 # constants
 FILTER_ROUTINE = [  # title filters for routine actions
-    "^Privacy Act of 1974", 
+    "^Privacy\sAct\sof\s1974", 
     "^Airworthiness Directives", 
     "^Airworthiness Criteria", 
     "^Fisheries of the [\w]+;", 
@@ -37,6 +42,7 @@ FILTER_ROUTINE = [  # title filters for routine actions
     "^Drawbridge Operation Regulation", 
     ]
 
+#FILTER_ROUTINE = ["^Privacy"]  #FILTER_ROUTINE[:1]
 
 def query_documents_endpoint(endpoint_url: str, dict_params: dict):
     """_summary_
@@ -76,6 +82,7 @@ def get_documents_by_date(start_date: str,
                           fields: tuple = ('document_number', 
                                            'publication_date', 
                                            'agency_names', 
+                                           'agencies', 
                                            'citation', 
                                            'start_page', 
                                            'end_page', 
@@ -116,6 +123,7 @@ def get_documents_by_number(document_numbers: list,
                             fields: tuple = ('document_number', 
                                              'publication_date', 
                                              'agency_names', 
+                                             'agencies', 
                                              'citation', 
                                              'start_page', 
                                              'end_page', 
@@ -177,7 +185,7 @@ def export_data(df: DataFrame,
     print(f"Exported data as csv to {path}.")
 
 
-def main(input_path: Path = None):
+def main(metadata: dict, input_path: Path = None):
     
     if not input_path:
         start_date = input("Input start date [yyyy-mm-dd]: ")
@@ -194,9 +202,10 @@ def main(input_path: Path = None):
 
     df = DataFrame(list(results_with_rin_info))
     df, _ = filter_corrections(df)
-    df = filter_actions(df, filters = [], columns = ["title"])
+    df = filter_actions(df, filters = FILTER_ROUTINE, columns = ["title"])
     df = clean_agency_names(df).set_index("document_number")
-    df = df.drop(columns=["regulation_id_number_info", "correction_of"])
+    df = get_parent_agency(df, metadata)
+    df = df.drop(columns=["regulation_id_number_info", "correction_of", "agencies"])
     return df
 
 
@@ -204,11 +213,11 @@ def create_paths(input_file: bool = False):
     
     dirs = []
     p = Path(__file__)
-    data_dir = p.parents[1].joinpath("data")
-    dirs.append(data_dir)
+    output_dir = p.parents[1].joinpath("output")
+    dirs.append(output_dir)
     
-    if not data_dir.exists():
-        data_dir.mkdir(parents=True, exist_ok=True)
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True, exist_ok=True)
     
     if input_file:
         input_dir = p.parents[1].joinpath("input")
@@ -220,18 +229,25 @@ def create_paths(input_file: bool = False):
 
 if __name__ == "__main__":
     
-    get_input = input("Using input file? [y/n]: ")
+    print(FILTER_ROUTINE)
+    
+    metadata_dir = Path(__file__).parent.joinpath("data")
+    with open(metadata_dir / "agencies_endpoint_metadata.json", "r") as f:
+        agency_metadata = json.load(f)["results"]
     
     while True:
+        # print prompt to console
+        get_input = input("Use input file? [yes/no]: ")
+        
         if get_input.lower() in ("y", "yes"):
-            data_dir, input_dir = create_paths(input_file=True)
-            df2 = main(input_path=input_dir)
-            export_data(df2, data_dir)
+            output_dir, input_dir = create_paths(input_file=True)
+            df2 = main(agency_metadata, input_path=input_dir)
+            export_data(df2, output_dir)
             break
         elif get_input.lower() in ("n", "no"):
-            data_dir = create_paths()[0]
-            df = main()
-            export_data(df, data_dir)
+            output_dir = create_paths()[0]
+            df = main(agency_metadata)
+            export_data(df, output_dir)
             break
         else:
             print("Invalid input. Must enter 'y' or 'n'.")

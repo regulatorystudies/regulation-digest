@@ -2,10 +2,11 @@
 import itertools
 import re
 from numpy import array
+from pandas import DataFrame
 
 
 # Defining a function to search for string patterns within dataframe columns
-def search_columns(df, 
+def search_columns(df: DataFrame, 
                    patterns: list, 
                    columns: list, 
                    return_as: str = "indicator_column", 
