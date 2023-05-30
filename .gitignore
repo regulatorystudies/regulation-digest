@@ -3,6 +3,7 @@ data/
 input/
 *.zip
 retrieve_clips_program/
+_archive/
 
 #Nuitka files
 *.build/
