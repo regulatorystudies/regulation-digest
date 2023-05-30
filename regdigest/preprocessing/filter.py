@@ -4,6 +4,13 @@ from pandas import DataFrame
 from search_columns import search_columns
 
 
+#FILTERS_ROUTINE = []
+
+
+class FilterError(Exception):
+    pass
+
+
 def filter_corrections(df: DataFrame):
     """Filter out corrections from Federal Register documents. 
     Identifies corrections using `corrrection_of` field and regex searches of `document_number`, `title`, and `action` fields.
@@ -38,7 +45,30 @@ def filter_corrections(df: DataFrame):
     
     # return filtered results
     if len(df) != (len(df_no_corrections) + len(df_corrections)):
-        raise Exception(f"Non-corrections ({len(df_no_corrections)}) and corrections ({len(df_corrections)}) do no sum to total ({len(df)}).")
+        raise FilterError(f"Non-corrections ({len(df_no_corrections)}) and corrections ({len(df_corrections)}) do no sum to total ({len(df)}).")
 
     else:
         return df_no_corrections, df_corrections
+
+
+def filter_actions(df: DataFrame, pattern: str = None, filters: tuple | list = (), columns: tuple | list = ()):
+    # get original column names
+    cols = df.columns.tolist()
+    
+    if pattern:
+        regex = pattern
+    else:
+        regex = [r"|".join(filters)]
+    
+    # Searching fields
+    search = search_columns(df, regex, list(columns), 
+                                 return_column="indicator")
+    bool_search = array(search["indicator"] == 1)
+    
+    # filter out flagged documents
+    df_filtered = df.loc[~bool_search, cols]
+    
+    # return filtered results
+    return df_filtered
+
+

@@ -6,17 +6,36 @@ Created: 2022-06-13
 
 Last modified: 2023-05-26
 """
-
+# import dependencies
 from datetime import date
-import os
+#import os
 from pathlib import Path
 import re
-import sys
+#import sys
 
 from pandas import DataFrame, read_csv, read_excel
 import requests
 
-from preprocessing import clean_agency_names, filter_corrections, extract_rin_info, create_rin_keys
+from preprocessing import clean_agency_names, filter_corrections, filter_actions, extract_rin_info, create_rin_keys
+
+
+# constants
+FILTER_ROUTINE = [  # title filters for routine actions
+    "^Privacy Act of 1974", 
+    "^Airworthiness Directives", 
+    "^Airworthiness Criteria", 
+    "^Fisheries of the [\w]+;", 
+    "^Submission for OMB Review;", 
+    "^Sunshine Act Meetings", 
+    "^Agency Information Collection Activit[\w]+", 
+    "Notice of Closed Meetings$", 
+    "^Environmental Impact Statements; Notice of Availability", 
+    "^Combined Notice of Filings", 
+    "Coastwise Endorsement Eligibility Determination for a [\w]+ Vessel", 
+    "^Safety Zone[\w]*", 
+    "^Air Plan Approval", 
+    "^Drawbridge Operation Regulation", 
+    ]
 
 
 def query_documents_endpoint(endpoint_url: str, dict_params: dict):
@@ -84,6 +103,7 @@ def get_documents_by_date(start_date: str,
                    'conditions[publication_date][gte]': f"{start_date}"
                    }
     
+    # relies on functionality that empty strings '' are falsey in Python: https://docs.python.org/3/library/stdtypes.html#truth-value-testing
     if end_date:
         dict_params.update({'conditions[publication_date][lte]': f"{end_date}"})
 
@@ -161,7 +181,7 @@ def main(input_path: Path = None):
     
     if not input_path:
         start_date = input("Input start date [yyyy-mm-dd]: ")
-        end_date = input("Input end date [yyyy-mm-dd]: ")
+        end_date = input("Input end date [yyyy-mm-dd]. Or just press enter to use today as the end date: ")
         results, _ = get_documents_by_date(start_date, end_date=end_date)
     else:
         # https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
@@ -174,6 +194,7 @@ def main(input_path: Path = None):
 
     df = DataFrame(list(results_with_rin_info))
     df, _ = filter_corrections(df)
+    df = filter_actions(df, filters = [], columns = ["title"])
     df = clean_agency_names(df).set_index("document_number")
     df = df.drop(columns=["regulation_id_number_info", "correction_of"])
     return df
@@ -199,14 +220,19 @@ def create_paths(input_file: bool = False):
 
 if __name__ == "__main__":
     
-    get_input = input("Using input file? [y/n]")
+    get_input = input("Using input file? [y/n]: ")
     
-    if get_input=="y":
-        data_dir, input_dir = create_paths(input_file=True)
-        df2 = main(input_path=input_dir)
-        export_data(df2, data_dir)
-    else:
-        data_dir = create_paths()[0]
-        df = main()
-        export_data(df, data_dir)
+    while True:
+        if get_input.lower() in ("y", "yes"):
+            data_dir, input_dir = create_paths(input_file=True)
+            df2 = main(input_path=input_dir)
+            export_data(df2, data_dir)
+            break
+        elif get_input.lower() in ("n", "no"):
+            data_dir = create_paths()[0]
+            df = main()
+            export_data(df, data_dir)
+            break
+        else:
+            print("Invalid input. Must enter 'y' or 'n'.")
 
