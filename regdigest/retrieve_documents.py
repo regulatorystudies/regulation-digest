@@ -26,23 +26,22 @@ from preprocessing import (
 
 # constants
 FILTER_ROUTINE = [  # title filters for routine actions
-    "^Privacy\sAct\sof\s1974", 
-    "^Airworthiness Directives", 
-    "^Airworthiness Criteria", 
-    "^Fisheries of the [\w]+;", 
-    "^Submission for OMB Review;", 
-    "^Sunshine Act Meetings", 
-    "^Agency Information Collection Activit[\w]+", 
-    "Notice of Closed Meetings$", 
-    "^Environmental Impact Statements; Notice of Availability", 
-    "^Combined Notice of Filings", 
-    "Coastwise Endorsement Eligibility Determination for a [\w]+ Vessel", 
-    "^Safety Zone[\w]*", 
-    "^Air Plan Approval", 
-    "^Drawbridge Operation Regulation", 
+    r"^Privacy\sAct\sof\s1974", 
+    r"^Airworthiness\sDirectives", 
+    r"^Airworthiness\sCriteria", 
+    r"^Fisheries\sof\sthe\s[\w]+;", 
+    r"^Submission\sfor\sOMB\sReview;", 
+    r"^Sunshine\sAct\sMeetings", 
+    r"^Agency\sInformation\sCollection\sActivit[\w]+", 
+    r"Notice\sof\sClosed\sMeetings$", 
+    r"^Environmental\sImpact\sStatements;\sNotice\sof\sAvailability", 
+    r"^Combined\sNotice\sof\sFilings", 
+    r"Coastwise\sEndorsement\sEligibility\sDetermination\s[.]+\sVessel", 
+    r"^Safety\sZone[\w]*", 
+    r"^Air\sPlan\sApproval", 
+    r"^Drawbridge\sOperation\sRegulation", 
     ]
 
-#FILTER_ROUTINE = ["^Privacy"]  #FILTER_ROUTINE[:1]
 
 def query_documents_endpoint(endpoint_url: str, dict_params: dict):
     """_summary_
@@ -188,9 +187,19 @@ def export_data(df: DataFrame,
 def main(metadata: dict, input_path: Path = None):
     
     if not input_path:
-        start_date = input("Input start date [yyyy-mm-dd]: ")
-        end_date = input("Input end date [yyyy-mm-dd]. Or just press enter to use today as the end date: ")
-        results, _ = get_documents_by_date(start_date, end_date=end_date)
+        
+        while True:
+            pattern = r"\d{4}-[0-1]\d{1}-[0-3]\d{1}"
+            start_date = input("Input start date [yyyy-mm-dd]: ")
+            match_1 = re.fullmatch(pattern, start_date, flags=re.I)
+            end_date = input("Input end date [yyyy-mm-dd]. Or just press enter to use today as the end date: ")
+            match_2 = re.fullmatch(pattern, end_date, flags=re.I)
+            if match_1 and (match_2 or end_date==""):
+                results, _ = get_documents_by_date(start_date, end_date=end_date)
+                break
+            else:
+                print("Invalid input. Must enter dates in format 'yyyy-mm-dd'.")
+        
     else:
         # https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
         #document_numbers = [item for sublist in kwargs.values for item in sublist if type(sublist)==list]
@@ -229,8 +238,7 @@ def create_paths(input_file: bool = False):
 
 if __name__ == "__main__":
     
-    print(FILTER_ROUTINE)
-    
+    # import metadata
     metadata_dir = Path(__file__).parent.joinpath("data")
     with open(metadata_dir / "agencies_endpoint_metadata.json", "r") as f:
         agency_metadata = json.load(f)["results"]
