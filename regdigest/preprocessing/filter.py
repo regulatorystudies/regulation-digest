@@ -5,9 +5,6 @@ from pandas import DataFrame
 from search_columns import search_columns
 
 
-#FILTERS_ROUTINE = []
-
-
 class FilterError(Exception):
     pass
 
@@ -58,24 +55,21 @@ def filter_actions(df: DataFrame, pattern: str = None, filters: tuple[str] | lis
     
     if pattern:
         regex = pattern
-        print(f"used pattern: {regex}")
+        #print(f"used pattern: {regex}")
     else:
         filter_groups = (f"(?:{filter})" for filter in filters)
         regex = fr"{'|'.join(filter_groups)}"
-        #regex = re.sub(r" ", r"\s", regex)
-        print(f"used filters: {regex}")
+        #print(f"used filters: {regex}")
     
     # Searching fields
     search = search_columns(df, [regex], list(columns), 
                                  return_column="indicator")
     bool_search = array(search["indicator"] == 1)
-    print(list(bool_search).count(True))
+    print(f"{list(bool_search).count(True)} documents filtered out.")
     
     # filter out flagged documents
     df_filtered = df.loc[~bool_search, cols]
-    print(len(df), len(df_filtered))
     
     # return filtered results
     return df_filtered
-
 
