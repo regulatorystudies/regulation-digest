@@ -37,7 +37,7 @@ The `input/` sub-folder is where you place the input file, if it is being used. 
 
 The `output/` sub-folder is where the output data will be located. It creates data files in comma separated values (CSV) format with the naming convention `federal_register_clips_YYYY-MM-DD`, where the date is the current date. If more than one file is created in a day, it will be overwritten. If the output folder does not exist at runtime, it will be automatically created for you.
 
-The `regdigest/` sub-folder is the module where the program itself is located. There are many files and sub-directories within it, but you do not need to do anything with them (except leave them be!). These files are required for the program to run without installing Python on your computer. The only file you need to access within this folder is `retrieve_documents.exe`. This is the executable that runs the compiled program.
+The `regdigest/` sub-folder is the module where the program itself is located. The file, `retrieve_documents.py`, contains the code needed to run the program.
 
 ## Usage
 
@@ -57,3 +57,7 @@ Next, the program will ask:
 Either supply the end date or press enter to proceed. If an invalid response is received, the program will ask again.
 
 Finally, the program will retrieve the documents from the Federal Register, format them, and create an CSV file with today's date in the `output/` sub-folder.
+
+## Contact
+
+Please reach out to <mfebrizio@gwu.edu> with feedback or questions.
