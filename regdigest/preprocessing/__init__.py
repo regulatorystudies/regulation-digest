@@ -11,10 +11,11 @@ __all__ = [
     ]
 
 from .agencies import (
+    DEFAULT_AGENCY_SCHEMA, 
+    AgencyMetadata,
     clean_agencies_column,
     clean_agency_names,
     get_parent_agency,
-    DEFAULT_AGENCY_SCHEMA,
     )
 
 from .filter import (
