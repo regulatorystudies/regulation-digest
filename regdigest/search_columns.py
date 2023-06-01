@@ -1,11 +1,12 @@
 # import dependencies
 import itertools
 import re
-import numpy as np
+from numpy import array
+from pandas import DataFrame
 
 
 # Defining a function to search for string patterns within dataframe columns
-def search_columns(df, 
+def search_columns(df: DataFrame, 
                    patterns: list, 
                    columns: list, 
                    return_as: str = "indicator_column", 
@@ -44,7 +45,7 @@ def search_columns(df,
         # loop over list of inputs
         for i in inputs:
             searchre = df[i[1]].str.contains(i[0], regex=True, case=False, flags=re_flags)
-            searchbool = np.array([True if n is True else False for n in searchre])
+            searchbool = array([True if n is True else False for n in searchre])
             bool_list.append(searchbool)
         
     elif (len(patterns) == 1) and (len(patterns) != len(columns)):
@@ -54,7 +55,7 @@ def search_columns(df,
         # loop over list of inputs
         for i in inputs:
             searchre = df[i[1]].str.contains(i[0], regex=True, case=False, flags=re_flags)
-            searchbool = np.array([True if n is True else False for n in searchre])
+            searchbool = array([True if n is True else False for n in searchre])
             bool_list.append(searchbool)
            
     else:  # eg, patterns formatted as a list of len(n>1) but does not match len(columns)
@@ -63,7 +64,7 @@ def search_columns(df,
     # combine each "searchbool" array elementwise
     # we want a positive match for any column to evaluate as True
     # equivalent to (bool_list[0] | bool_list[1] | bool_list[2] | ... | bool_list[n-1])
-    filter_bool = np.array(bool_list).any(axis=0)
+    filter_bool = array(bool_list).any(axis=0)
 
     if return_as == "indicator_column":
         dfResults = df.copy(deep=True)

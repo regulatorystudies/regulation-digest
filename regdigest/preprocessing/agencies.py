@@ -1,5 +1,10 @@
 # import dependencies
+from datetime import date
+import json
+from pathlib import Path
 from pandas import DataFrame
+import requests
+
 
 # set default agency schema via Federal Register API
 # source: https://www.federalregister.gov/developers/documentation/api/v1
@@ -464,6 +469,88 @@ DEFAULT_AGENCY_SCHEMA = [
     ]
 
 
+class AgencyMetadata:
+    """Class for storing and transforming agency metadata from Federal Register API.
+    
+    Accepts a JSON object of structure iterable[dict].
+    
+    Methods:
+        transform: Transform metadata from Federal Register API.
+        save_json: Save transformed metadata.
+    """    
+    def __init__(self, data: dict = None):
+        self.data = data
+        self.transformed_data = {}
+    
+    def get_metadata(self, endpoint_url: str = r"https://www.federalregister.gov/api/v1/agencies.json"):
+        """Queries the GET agencies endpoint of the Federal Register API.
+        Retrieve agencies metadata. After defining endpoint url, no parameters are needed.
+
+        Args:
+            endpoint_url (str, optional): Endpoint for retrieving agencies metadata. Defaults to r"https://www.federalregister.gov/api/v1/agencies.json".
+
+        Raises:
+            HTTPError: via requests package
+        """
+        # request documents; raise error if it fails
+        agencies_response = requests.get(endpoint_url)
+        if agencies_response.status_code != 200:
+            print(agencies_response.reason)
+            agencies_response.raise_for_status()
+        # return response as json
+        self.data = agencies_response.json()
+    
+    def transform(self):
+        """Transform self.data from original format of iterable[dict] to dict[dict].
+        """        
+        if self.transformed_data != {}:
+            print("Metadata already transformed! Access it with self.transformed_data.")
+        else:
+            agency_dict = {}
+            for i in self.data:
+                if type(i) == dict:  # check if type is dict
+                    slug = str(i.get("slug", "none"))
+                    agency_dict.update({slug: i})                    
+                else:  # cannot use this method on non-dict structures
+                    continue
+            while "none" in agency_dict:
+                agency_dict.pop("none")
+            # return transformed data as a dictionary
+            self.transformed_data = agency_dict
+    
+    def save_json(self, 
+                  path: Path, 
+                  file_name: str = "agencies_endpoint_metadata.json"):
+        """Save metadata on agencies from Federal Register API.
+
+        Args:
+            data_dir (Path, optional): Path for saving JSON. Defaults to Path(__file__).parents[1].joinpath("data", "raw").
+            file_name (str, optional): File name to use when saving. Defaults to r"agencies_endpoint_metadata.json".
+        """
+        # create dictionary of data with retrieval date
+        dict_metadata = {"source": "Federal Register API, https://www.federalregister.gov/reader-aids/developer-resources/rest-api",
+                         "endpoint": r"https://www.federalregister.gov/api/v1/agencies.json",
+                         "date_retrieved": f"{date.today()}",
+                         "count": len(self.transformed_data), 
+                         "results": self.transformed_data
+                        }
+        
+        if not path.exists():
+            path.mkdir(parents=True, exist_ok=True)
+        
+        # export json file
+        file_path = path / file_name
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(dict_metadata, f, indent=4)
+
+
+def reorder_new_columns(df: DataFrame, original_columns: list, new_columns: list, after_column: str):
+    index_loc = original_columns.index(after_column) + 1  # locate element after a specified column
+    new_col_list = original_columns[:index_loc] + new_columns + original_columns[index_loc:]  # create new column list
+    # insert new columns in specified location and return
+    return df.reindex(columns = new_col_list)
+    
+
 def clean_agencies_column(df_input: DataFrame, 
                           metadata: dict, 
                           columns: tuple[str] = ("agencies", "agency_names"), 
@@ -475,7 +562,7 @@ def clean_agencies_column(df_input: DataFrame,
     Args:
         df_input (DataFrame): Input dataframe.
         metadata (dict): Agency metadata for lookup values.
-        column (str, optional): Column in dataframe to clean. Defaults to "agencies".
+        columns (tuple[str], optional): Columns in dataframe to clean. Defaults to ("agencies", "agency_names").
         schema (list, optional): Schema of federal agencies as array. Defaults to DEFAULT_AGENCY_SCHEMA.
 
     Raises:
@@ -516,50 +603,63 @@ def clean_agencies_column(df_input: DataFrame,
     # b. list of slugs and list of acronyms that correspond to the top-level ids
     
     # create empty lists for results
-    unique_parent_ids, unique_parent_slugs, unique_parent_acronyms = [], [], []
+    unique_parent_ids, unique_parent_slugs, unique_parent_acronyms, unique_parent_names = [], [], [], []
     
     # iterate over list of clean agency slugs
-    for d in slug_list_clean:
+    for document in slug_list_clean:
         # a) create new column: list of unique top-level ids
         # iterate over parent_ids for each document
         # return parent_id for sub-agencies and agency_id for agencies with no parent
         # currently returns intermediate parent for parent agencies with parents
         ids = []
-        for s in d:
-            if metadata[s].get("parent_id") is not None:
-                ids.append(metadata[s].get("parent_id"))
+        for slug in document:
+            if metadata[slug].get("parent_id") is not None:
+                ids.append(metadata[slug].get("parent_id"))
             else:
-                ids.append(metadata[s].get("id"))
+                ids.append(metadata[slug].get("id"))
         ids = list(set(ids))  # use set() to keep only unique ids
         unique_parent_ids.append(ids)  # append to results list (a)
         
         # b) create 2 new columns: list of unique top-level slugs; list of unique acronyms
         # iterate over each document's unique_parent_ids
         # return slug for corresponding id from FR API's agencies endpoint
-        slugs, acronyms = [], []
+        slugs, acronyms, names = [], [], []
         for i in ids:
             # locate slug for each input id from agencies endpoint metadata
             slugs.extend(k for k, v in metadata.items() if v.get("id")==i)
+            
             # locate acronym
             acronyms.extend(v.get("short_name") for v in metadata.values() if v.get("id")==i)
+            
+            # locate name
+            names.extend(v.get("name") for v in metadata.values() if v.get("id")==i)
+            
         # append to results list (b)
         unique_parent_slugs.append(slugs)
         unique_parent_acronyms.append(acronyms)
+        unique_parent_names.append(names)
     
     # check if results make sense; raise error if not
-    if not len(unique_parent_ids) == len(unique_parent_slugs) == len(unique_parent_acronyms):
+    if not len(unique_parent_ids) == len(unique_parent_slugs) == len(unique_parent_acronyms) == len(unique_parent_names):
         raise Exception("Error extracting unique data from 'agencies' column.")
     else:  # create new columns with extracted data
         df.loc[:, "agencies_id_uq"] = unique_parent_ids
         df.loc[:, "agencies_slug_uq"] = unique_parent_slugs
         df.loc[:, "agencies_acronym_uq"] = unique_parent_acronyms
+        df.loc[:, "agencies_name_uq"] = unique_parent_names
     
     # 3) reorder columns
-    new_cols = ["agency_slugs", "agencies_id_uq", "agencies_slug_uq", "agencies_acronym_uq"]  # new columns added
-    col_list = df_input.columns.tolist()  # original columns from df_input
-    index_loc = col_list.index("agencies") + 1  # locate element after "agencies" column
-    new_col_list = col_list[0:index_loc] + new_cols + col_list[index_loc:]  # create new column list
-    df = df.reindex(columns = new_col_list)  # insert new columns after "agencies"
+    new_cols = [  # new columns added
+        "agency_slugs", 
+        "agencies_id_uq", 
+        "agencies_slug_uq", 
+        "agencies_acronym_uq", 
+        "agencies_name_uq"
+        ]
+    df = reorder_new_columns(df, 
+                             original_columns=df_input.columns.tolist(), 
+                             new_columns=new_cols, 
+                             after_column="agencies")
     
     # return output df with new columns
     return df
@@ -569,4 +669,47 @@ def clean_agency_names(df: DataFrame, column: str = "agency_names"):
     names = ("; ".join(x) for x in df[column].tolist() if x is not None)
     df.loc[:, column] = list(names)
     return df
+
+
+def get_parent_agency(df: DataFrame, 
+                      metadata: dict, 
+                      columns = (
+                          "agencies_id_uq", 
+                          "agencies_slug_uq", 
+                          "agencies_acronym_uq", 
+                          "agencies_name_uq", 
+                          "agency_slugs", ), 
+                      output_column: str = "parent_agency_names", 
+                      clean_names: bool = True
+                      ):
+    
+    df_copy = df.copy(deep=True)
+    
+    # clean up agencies column from API
+    cols_exist = (True if c in df.columns else False for c in columns)
+    if not any(cols_exist):
+        df_copy = clean_agencies_column(df_copy, metadata=metadata)
+    
+    df_copy = df_copy.rename(columns={"agencies_name_uq": output_column})
+    #cols_out = df.columns.tolist() + [output_column]
+    df_copy = reorder_new_columns(df_copy, 
+                                  original_columns=df.columns.tolist(), 
+                                  new_columns=[output_column], 
+                                  after_column="agencies")
+    
+    if clean_names:
+        df_copy = clean_agency_names(df_copy, column=output_column)
+    
+    return df_copy
+
+
+# only query agencies endpoint when run as script; save that output 
+if __name__ == "__main__":
+    
+    data_dir = Path(__file__).parents[1].joinpath("data")
+    
+    agencies_metadata = AgencyMetadata()
+    agencies_metadata.get_metadata()
+    agencies_metadata.transform()
+    agencies_metadata.save_json(data_dir)
 

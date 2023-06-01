@@ -21,3 +21,20 @@ Use the code in `retrieve_register_clips.py` to retrieve data on rulemakings fro
 6. Sort by category and agency_names. Color the remaining entries by category, then delete the columns for category, significant, and correction_of.
 
 7. Share the document!
+
+## Installation
+
+Two options:
+  1. Download a Python interpreter, create the environment, and run script.
+  2. Download compiled program zip file and run (Python not required).
+
+## Usage
+
+### Python Interpreter
+
+TBD
+
+### Compiled Program
+
+1. Download the zip file containing the program.
+

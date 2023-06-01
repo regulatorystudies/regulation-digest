@@ -1,6 +1,18 @@
 # project specific
-data/
+/data/
+!regdigest/data/*.json
 input/
+output/
+*.zip
+retrieve_clips_program/
+_archive/
+
+#Nuitka files
+*.build/
+*.dist/
+*.cmd
+*.exe
+*.onefile-build/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

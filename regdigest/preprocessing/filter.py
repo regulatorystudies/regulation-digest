@@ -1,7 +1,12 @@
+import re
 from numpy import array
 from pandas import DataFrame
 
 from search_columns import search_columns
+
+
+class FilterError(Exception):
+    pass
 
 
 def filter_corrections(df: DataFrame):
@@ -38,7 +43,33 @@ def filter_corrections(df: DataFrame):
     
     # return filtered results
     if len(df) != (len(df_no_corrections) + len(df_corrections)):
-        raise Exception(f"Non-corrections ({len(df_no_corrections)}) and corrections ({len(df_corrections)}) do no sum to total ({len(df)}).")
+        raise FilterError(f"Non-corrections ({len(df_no_corrections)}) and corrections ({len(df_corrections)}) do no sum to total ({len(df)}).")
 
     else:
         return df_no_corrections, df_corrections
+
+
+def filter_actions(df: DataFrame, pattern: str = None, filters: tuple[str] | list[str] = (), columns: tuple | list = ()):
+    # get original column names
+    cols = df.columns.tolist()
+    
+    if pattern:
+        regex = pattern
+        #print(f"used pattern: {regex}")
+    else:
+        filter_groups = (f"(?:{filter})" for filter in filters)
+        regex = fr"{'|'.join(filter_groups)}"
+        #print(f"used filters: {regex}")
+    
+    # Searching fields
+    search = search_columns(df, [regex], list(columns), 
+                                 return_column="indicator")
+    bool_search = array(search["indicator"] == 1)
+    print(f"{list(bool_search).count(True)} documents filtered out.")
+    
+    # filter out flagged documents
+    df_filtered = df.loc[~bool_search, cols]
+    
+    # return filtered results
+    return df_filtered
+
