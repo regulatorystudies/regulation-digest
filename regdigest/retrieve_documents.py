@@ -19,6 +19,7 @@ from preprocessing import (
     clean_agency_names, get_parent_agency, 
     filter_corrections, filter_actions, 
     extract_rin_info, create_rin_keys, 
+    AgencyMetadata, 
     )
 
 # import constants
@@ -259,10 +260,16 @@ def create_paths(input_file: bool = False) -> list[Path]:
 
 if __name__ == "__main__":
     
-    # import metadata
-    metadata_dir = Path(__file__).parent.joinpath("data")
-    with open(metadata_dir / "agencies_endpoint_metadata.json", "r") as f:
-        agency_metadata = json.load(f)["results"]
+    # get agency metadata
+    try:  # import metadata from local JSON
+        metadata_dir = Path(__file__).parent.joinpath("data")
+        with open(metadata_dir / "agencies_endpoint_metadata.json", "r") as f:
+            metadata = json.load(f)["results"]
+    except:  # retrieve from API
+        agency_metadata = AgencyMetadata()
+        agency_metadata.get_metadata()
+        agency_metadata.transform()
+        metadata = agency_metadata.transformed_data
     
     # loop for getting inputs, calling main function, and saving data
     # won't break until it receives valid input
@@ -273,12 +280,12 @@ if __name__ == "__main__":
         # check user inputs
         if get_input.lower() in ("y", "yes"):
             output_dir, input_dir = create_paths(input_file=True)
-            df2 = main(agency_metadata, input_path=input_dir)
+            df2 = main(metadata, input_path=input_dir)
             export_data(df2, output_dir)
             break
         elif get_input.lower() in ("n", "no"):
             output_dir = create_paths()[0]
-            df = main(agency_metadata)
+            df = main(metadata)
             export_data(df, output_dir)
             break
         else:
