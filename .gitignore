@@ -4,6 +4,8 @@
 *.zip
 retrieve_clips_program/
 _archive/
+regdigest/input/
+regdigest/output/
 
 #Nuitka files
 *.build/
