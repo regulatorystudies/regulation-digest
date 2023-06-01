@@ -7,7 +7,7 @@ Retrieving and processing Federal Register documents for the GW Regulatory Studi
 There are two options for running the program:
 
   1. Download a Python interpreter, create the environment, and run script (Python required).
-  2. Download the compiled program file (created using Nuitka), unzip, and run (Python not required).
+  2. Download the compiled program file (created using [Nuitka](https://nuitka.net/)), unzip, and run (Python not required).
 
 This README document focuses on option 1. Please reach out to <mfebrizio@gwu.edu> for access to the compiled program.
 
@@ -23,7 +23,13 @@ cd "PATH/TO/YOUR/DIRECTORY/WITH/YML"
 conda env create -f environment.yml
 ```
 
-Your environment can be activated from the command line using `conda activate regdigest`, and the program is now ready to run on your computer. Run the program with your choice of IDE or from the command line, `python retrieve_documents.py`.
+Your environment can be activated from the command line using `conda activate regdigest`, and the program is now ready to run on your computer. Run the program with your choice of IDE or from the command line:
+
+```{cmd}
+cd "PATH/TO/SCRIPT"
+
+python retrieve_documents.py
+```
 
 ## Directory Structure
 
@@ -57,6 +63,20 @@ Next, the program will ask:
 Either supply the end date or press enter to proceed. If an invalid response is received, the program will ask again.
 
 Finally, the program will retrieve the documents from the Federal Register, format them, and create an CSV file with today's date in the `output/` sub-folder.
+
+## Compiling the Program
+
+The program is compiled for distribution using the Nuitka python package (see [Use Case 4 - Program Distribution](https://nuitka.net/doc/user-manual.html#use-case-4-program-distribution) in the User Manual). Standalone mode produces a folder for distribution to other systems.
+
+The following commands create a `.dist` folder containing the executable `retrieve_documents.exe`. The `--include-data-files` flag is used to include the metadata required to identify parent agencies associated with each document.
+
+```{cmd}
+cd "PATH/TO/SCRIPT"
+
+conda activate regdigest
+
+python -m nuitka --standalone --remove-output --include-data-files=./data/agencies_endpoint_metadata.json=data/agencies_endpoint_metadata.json retrieve_documents.py
+```
 
 ## Contact
 
