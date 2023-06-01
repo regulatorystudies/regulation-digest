@@ -156,7 +156,7 @@ def parse_document_numbers(path: Path,
     Returns:
         list: List of document numbers.
     """    
-    file = next(p for p in path.iterdir() if p.is_file())
+    file = next(p for p in path.iterdir() if (p.is_file() and p.name != ".gitignore"))
     if file.suffix in (".csv", ".txt", ".tsv"):
         with open(file, "r") as f:
             df = read_csv(f)
