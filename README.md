@@ -9,7 +9,7 @@ There are two options for running the program:
   1. Download a Python interpreter, create the environment, and run script (Python required).
   2. Download the compiled program file (created using Nuitka), unzip, and run (Python not required).
 
-This README document focuses on approach 1. Please reach out to <mfebrizio@gwu.edu> for access to the compiled program.
+This README document focuses on option 1. Please reach out to <mfebrizio@gwu.edu> for access to the compiled program.
 
 First, install a Python interpreter to run the code. Some suggested download options are from [Anaconda](https://www.anaconda.com/download) or [Python.org](https://www.python.org/downloads/). The program was developed using Python 3.10, so that is the recommended version.
 
