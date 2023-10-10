@@ -26,9 +26,9 @@ conda env create -f environment.yml
 Your environment can be activated from the command line using `conda activate regdigest`, and the program is now ready to run on your computer. Run the program with your choice of IDE or from the command line:
 
 ```{cmd}
-cd "PATH/TO/SCRIPT"
+cd "PATH/TO/PROJECT/ROOT"
 
-python retrieve_documents.py
+python regdigest/retrieve_documents.py
 ```
 
 ## Directory Structure
