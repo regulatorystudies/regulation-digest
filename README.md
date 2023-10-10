@@ -68,7 +68,7 @@ Finally, the program will retrieve the documents from the Federal Register, form
 
 The program is compiled for distribution using the Nuitka python package (see [Use Case 4 - Program Distribution](https://nuitka.net/doc/user-manual.html#use-case-4-program-distribution) in the User Manual). Standalone mode produces a folder for distribution to other systems.
 
-The following commands create a `.dist` folder containing the executable `retrieve_documents.exe`. The `--include-data-files` flag is used to include the metadata required to identify parent agencies associated with each document.
+The following commands create a `.dist` folder containing the executable `retrieve_documents.exe`. The `--include-data-files` flag is used to include the metadata required to identify parent agencies associated with each document. You can specify the source of the data files and the end location of the files in the compiled dist using `--include-data-files=<source>=<target>`.
 
 ```{cmd}
 cd "PATH/TO/SCRIPT"
