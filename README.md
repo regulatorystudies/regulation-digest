@@ -80,4 +80,4 @@ python -m nuitka --standalone --remove-output --include-data-files=./data/agenci
 
 ## Contact
 
-Please reach out to <mfebrizio@gwu.edu> with feedback or questions.
+Please reach out to <mfebrizio@gwu.edu> with feedback or questions or open an issue on this repository.
