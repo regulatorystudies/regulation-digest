@@ -1,4 +1,4 @@
-cd ".\Box Sync\_MF\Reg Digest\regulation-digest\regdigest\"
+cd "PROJECT_ROOT"
 
 conda activate regdigest
 
