@@ -186,7 +186,7 @@ def export_data(df: DataFrame,
         path (Path): Path to save directory.
         file_name (str, optional): File name. Defaults to f"federal_register_clips_{date.today()}.csv".
     """    
-    with open(path / file_name, "w") as f:
+    with open(path / file_name, "w", encoding = "utf-8") as f:
         df.to_csv(f, lineterminator="\n")
     print(f"Exported data as csv to {path}.")
 
