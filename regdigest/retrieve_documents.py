@@ -7,7 +7,8 @@ Created: 2022-06-13
 Last modified: 2023-12-12
 """
 # dependencies
-from datetime import date
+from collections import Counter
+from datetime import date, timedelta
 import json
 from pathlib import Path
 import re
@@ -15,7 +16,7 @@ import re
 from pandas import DataFrame, read_csv, read_excel
 import requests
 
-from preprocessing import (
+from .preprocessing import (
     clean_agency_names, get_parent_agency, 
     filter_corrections, filter_actions, 
     extract_rin_info, create_rin_keys, 
@@ -23,11 +24,35 @@ from preprocessing import (
     )
 
 # import constants
-from regex_filters import FILTER_ROUTINE
+from .regex_filters import FILTER_ROUTINE
+
+
+BASE_PARAMS = {
+    'per_page': 1000, 
+    "page": 0, 
+    'order': "oldest"
+    }
 
 
 class QueryError(Exception):
     pass
+
+
+def extract_year(string: str):
+    """Extract date from a string in a format similar to `datetime.time`.
+
+    Args:
+        string (str): Date represented as a string.
+
+    Returns:
+        int: Year attribute of `datetime.date` object.
+    """
+    res = re.compile("\d{4}-\d{2}-\d{2}", re.I).match(string)
+    
+    if isinstance(res, re.Match):
+        return date.fromisoformat(res[0]).year
+    else:
+        return None
 
 
 def query_documents_endpoint(endpoint_url: str, dict_params: dict):
@@ -42,21 +67,40 @@ def query_documents_endpoint(endpoint_url: str, dict_params: dict):
     """    
     results, count = [], 0
     response = requests.get(endpoint_url, params=dict_params).json()
-    if response["count"] != 0:
+    if response["count"] == 0:
+        pass
+    elif response["count"] > 10000:
+        
+        start_date = dict_params.get("conditions[publication_date][gte]")
+        end_date = dict_params.get("conditions[publication_date][lte]")
+        if end_date is None:
+            end_date = f"{date.today()}"
+        start_year = extract_year(start_date)
+        end_year = extract_year(end_date)
+        years = range(start_year, end_year + 1)
+        
+        # format: YYYY-MM-DD
+        quarter_tuples = [
+            ("01-01", "03-31"), ("04-01", "06-30"), 
+            ("07-01", "09-30"), ("10-01", "12-31")
+            ]
+        
+        results, count = [], 0
+        for year in years:
+            for quarter in quarter_tuples:            
+                results_qrt, count_qrt = [], 0
+                # update parameters by quarter
+                dict_params.update({"conditions[publication_date][gte]": f"{year}-{quarter[0]}", 
+                                    "conditions[publication_date][lte]": f"{year}-{quarter[1]}"}
+                                )
+                # get documents
+                results_qrt = retrieve_results_by_next_page(endpoint_url, dict_params)
+                results.extend(results_qrt)
+                count += len(results_qrt)
+    else:
         count += response["count"]
-        #pages = response.get("total_pages")
-        #if pages is not None:  # for requests with multiple pages of results
-        results.extend(get_all_documents(count, endpoint_url, dict_params))
-        #try:
-            #if (pages * dict_params.get("per_page")) < count:
-                
-            #else:
-            #    results_multiple_pages = retrieve_results_by_page_range(pages, endpoint_url, dict_params)
-            #    results.extend(results_multiple_pages)
-        #else:
-        #except:  # when only one page of results
-        #    results_this_page = response["results"]
-        #    results.extend(results_this_page)
+        results.extend(retrieve_results_by_next_page(endpoint_url, dict_params))
+
     return results, count
 
 
@@ -70,10 +114,8 @@ def retrieve_results_by_page_range(num_pages: int, endpoint_url: str, dict_param
     return results
 
 
-def retrieve_results_by_next_page(endpoint_url: str, dict_params: dict) -> tuple[list, int]:
+def retrieve_results_by_next_page(endpoint_url: str, dict_params: dict) -> list:
     results = []
-    if dict_params.get("page"):
-        dict_params.pop("page")
     response = requests.get(endpoint_url, params=dict_params).json()
     pages = response.get("total_pages")
     next_page_url = response.get("next_page_url")
@@ -96,71 +138,7 @@ def retrieve_results_by_next_page(endpoint_url: str, dict_params: dict) -> tuple
     if counter != pages:
         raise QueryError(f"Failed to retrieve documents from all {pages} pages.")
     
-    return results, pages
-
-
-def remove_duplicates(results: list, key: str):
-    """Filter out duplicates from list[dict] based on a key: value pair 
-    ([source](https://www.geeksforgeeks.org/python-remove-duplicate-dictionaries-characterized-by-key/)).
-
-    Args:
-        results (list): List of results to filter out duplicates.
-        key (str): Key representing the duplicated key: value pair.
-
-    Returns:
-        tuple[list, int]: deduplicated list, number of duplicates removed
-    """    
-    initial_count = len(results)
-    
-    # remove duplicates
-    unique = set()
-    res = []
-    for r in results:
-
-        # testing for already present value
-        if r.get(key) not in unique:
-            res.append(r)
-            
-            # adding to set if new value
-            unique.add(r[key])
-    
-    filtered_count = len(res)
-    return res, (initial_count - filtered_count)
-
-
-def get_all_documents(document_count: int, endpoint_url: str, dict_params: dict):
-    
-    print(f"Retrieving {document_count} documents.")
-    results, results_dups = [], []
-    
-    # first batch
-    results_batch, _ = retrieve_results_by_next_page(endpoint_url, dict_params)
-    batch = 1
-    print(f"Retrieved {len(results_batch)} documents from batch {batch}.")
-    results.extend(results_batch)
-    
-    # retrieve remaining batches
-    while len(results) != document_count:
-        
-        if results_batch:
-            n_results_start = len(results)
-            last_date_retrieved = results_batch[-1].get("publication_date")
-            dict_params.update({'conditions[publication_date][gte]': f"{last_date_retrieved}"})
-            results_batch, _ = retrieve_results_by_next_page(endpoint_url, dict_params)
-            batch += 1
-            print(dict_params)
-            results_dups.extend(results_batch)
-            results, dups = remove_duplicates(results_dups, key="document_number")
-            n_results_end = len(results)
-            print(f"Retrieved {n_results_end} results; removed {dups} duplicates.")
-            if n_results_end <= n_results_start:
-                print(results[-100:-1])
-                break
-        else:
-            print(f"Retrieved {len(results)} results")
-            raise QueryError
-    
-    return results    
+    return results
 
 
 def get_documents_by_date(start_date: str, 
@@ -180,8 +158,8 @@ def get_documents_by_date(start_date: str,
                                            'regulation_id_number_info', 
                                            #'significant', 
                                            'correction_of'),
-                          endpoint_url: str = r'https://www.federalregister.gov/api/v1/documents.json?'
-                          ):
+                          endpoint_url: str = r'https://www.federalregister.gov/api/v1/documents.json?', 
+                          dict_params: dict = BASE_PARAMS):
     """Retrieve Federal Register documents using a date range.
 
     Args:
@@ -192,19 +170,12 @@ def get_documents_by_date(start_date: str,
 
     Returns:
         tuple[list, int]: Tuple of API results, count of documents retrieved.
-    """    
-    # define parameters
-    res_per_page = 1000
-    page_offset = 0
-    sort_order = 'oldest'
-    
-    # dictionary of parameters
-    dict_params = {'per_page': res_per_page, 
-                   "page": page_offset,
-                   'order': sort_order, 
-                   'fields[]': fields, 
-                   'conditions[publication_date][gte]': f"{start_date}"
-                   }
+    """
+    # update dictionary of parameters
+    dict_params.update({
+        'conditions[publication_date][gte]': f'{start_date}', 
+        'fields[]': fields
+        })
     
     # relies on functionality that empty strings '' are falsey in Python: https://docs.python.org/3/library/stdtypes.html#truth-value-testing
     if end_date:
@@ -367,9 +338,7 @@ def create_paths(input_file: bool = False) -> list[Path]:
     
     return dirs
 
-
-if __name__ == "__main__":
-    
+def retrieve_documents():
     # get agency metadata
     try:  # import metadata from local JSON
         metadata_dir = Path(__file__).parent.joinpath("data")
@@ -401,3 +370,7 @@ if __name__ == "__main__":
         else:
             print("Invalid input. Must enter 'y' or 'n'.")
 
+
+if __name__ == "__main__":
+    
+    retrieve_documents()
