@@ -103,10 +103,10 @@ def query_documents_endpoint(endpoint_url: str, dict_params: dict):
             ]
         
         # retrieve documents
-        results, count = [], 0
+        results = []
         for year in years:
             for quarter in quarter_tuples:            
-                results_qrt, count_qrt = [], 0
+                results_qrt = []
                 # update parameters by quarter
                 dict_params.update({"conditions[publication_date][gte]": f"{year}-{quarter[0]}", 
                                     "conditions[publication_date][lte]": f"{year}-{quarter[1]}"}
@@ -114,7 +114,8 @@ def query_documents_endpoint(endpoint_url: str, dict_params: dict):
                 # get documents
                 results_qrt = retrieve_results_by_next_page(endpoint_url, dict_params)
                 results.extend(results_qrt)
-                count += len(results_qrt)
+                count += response["count"]
+                #count += len(results_qrt)
     elif response["count"] in range(max_documents_threshold + 1):  # handles normal queries
         count += response["count"]
         results.extend(retrieve_results_by_next_page(endpoint_url, dict_params))
@@ -135,13 +136,16 @@ def retrieve_results_by_page_range(num_pages: int, endpoint_url: str, dict_param
     Returns:
         list: Documents retrieved from the API.
     """
-    results = []
+    results, tally = [], 0
     for page in range(1, num_pages + 1):  # grab results from each page
         dict_params.update({"page": page})
         response = requests.get(endpoint_url, params=dict_params)
         results_this_page = response.json()["results"]
         results.extend(results_this_page)
-    return results
+        tally += len(results_this_page)
+    count = response.json()["count"]
+    print(count, tally)
+    return results, count
 
 
 def retrieve_results_by_next_page(endpoint_url: str, dict_params: dict) -> list:
