@@ -45,6 +45,7 @@ BASE_PARAMS = {
     "page": 0, 
     'order': "oldest"
     }
+BASE_URL = r'https://www.federalregister.gov/api/v1/documents.json?'
 
 
 class QueryError(Exception):
@@ -196,7 +197,7 @@ def get_documents_by_date(start_date: str,
                                            'regulation_id_number_info', 
                                            #'significant', 
                                            'correction_of'),
-                          endpoint_url: str = r'https://www.federalregister.gov/api/v1/documents.json?', 
+                          endpoint_url: str = BASE_URL, 
                           dict_params: dict = BASE_PARAMS):
     """Retrieve Federal Register documents using a date range.
 
