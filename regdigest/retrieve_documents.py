@@ -4,11 +4,10 @@ Mark Febrizio
 
 Created: 2022-06-13
 
-Last modified: 2023-12-12
+Last modified: 2023-12-14
 """
 # dependencies
-from collections import Counter
-from datetime import date, timedelta
+from datetime import date
 import json
 from pathlib import Path
 import re
@@ -16,15 +15,29 @@ import re
 from pandas import DataFrame, read_csv, read_excel
 import requests
 
-from .preprocessing import (
-    clean_agency_names, get_parent_agency, 
-    filter_corrections, filter_actions, 
-    extract_rin_info, create_rin_keys, 
-    AgencyMetadata, 
-    )
-
-# import constants
-from .regex_filters import FILTER_ROUTINE
+try:  # for use as module: python -m regdigest
+    from .preprocessing import (
+        clean_agency_names, 
+        get_parent_agency, 
+        filter_corrections, 
+        filter_actions, 
+        extract_rin_info, 
+        create_rin_keys, 
+        AgencyMetadata, 
+        )
+    from .regex_filters import FILTER_ROUTINE
+except ImportError:
+    # hacky but allows alternate script to work
+    from preprocessing import (
+        clean_agency_names, 
+        get_parent_agency, 
+        filter_corrections, 
+        filter_actions, 
+        extract_rin_info, 
+        create_rin_keys, 
+        AgencyMetadata, 
+        )
+    from regex_filters import FILTER_ROUTINE
 
 
 BASE_PARAMS = {
@@ -59,7 +72,7 @@ def query_documents_endpoint(endpoint_url: str, dict_params: dict):
     """GET request for documents endpoint.
 
     Args:
-        endpoint_url (str): url for documents.{format} endpoint.
+        endpoint_url (str): URL for API endpoint.
         dict_params (dict): Paramters to pass in GET request.
 
     Returns:
@@ -67,16 +80,19 @@ def query_documents_endpoint(endpoint_url: str, dict_params: dict):
     """    
     results, count = [], 0
     response = requests.get(endpoint_url, params=dict_params).json()
-    if response["count"] == 0:
+    max_documents_threshold = 10000
+    
+    if response["count"] == 0:  # handles queries returning no documents
         pass
-    elif response["count"] > 10000:
+    elif response["count"] > max_documents_threshold:  # handles queries that need multiple requests
         
-        start_date = dict_params.get("conditions[publication_date][gte]")
+        # set range of years
+        start_year = extract_year(dict_params.get("conditions[publication_date][gte]"))
         end_date = dict_params.get("conditions[publication_date][lte]")
         if end_date is None:
-            end_date = f"{date.today()}"
-        start_year = extract_year(start_date)
-        end_year = extract_year(end_date)
+            end_year = date.today().year
+        else:
+            end_year = extract_year(end_date)
         years = range(start_year, end_year + 1)
         
         # format: YYYY-MM-DD
@@ -85,6 +101,7 @@ def query_documents_endpoint(endpoint_url: str, dict_params: dict):
             ("07-01", "09-30"), ("10-01", "12-31")
             ]
         
+        # retrieve documents
         results, count = [], 0
         for year in years:
             for quarter in quarter_tuples:            
@@ -97,14 +114,26 @@ def query_documents_endpoint(endpoint_url: str, dict_params: dict):
                 results_qrt = retrieve_results_by_next_page(endpoint_url, dict_params)
                 results.extend(results_qrt)
                 count += len(results_qrt)
-    else:
+    elif response["count"] in range(max_documents_threshold + 1):  # handles normal queries
         count += response["count"]
         results.extend(retrieve_results_by_next_page(endpoint_url, dict_params))
+    else:
+        raise QueryError(f"Query returned document count of {response['count']}.")
 
     return results, count
 
 
-def retrieve_results_by_page_range(num_pages: int, endpoint_url: str, dict_params: dict):
+def retrieve_results_by_page_range(num_pages: int, endpoint_url: str, dict_params: dict) -> list:
+    """Retrieve documents by looping over a given number of pages.
+
+    Args:
+        num_pages (int): Number of pages to retrieve documents from.
+        endpoint_url (str): URL for API endpoint.
+        dict_params (dict): Paramters to pass in GET request.
+
+    Returns:
+        list: Documents retrieved from the API.
+    """
     results = []
     for page in range(1, num_pages + 1):  # grab results from each page
         dict_params.update({"page": page})
@@ -115,6 +144,18 @@ def retrieve_results_by_page_range(num_pages: int, endpoint_url: str, dict_param
 
 
 def retrieve_results_by_next_page(endpoint_url: str, dict_params: dict) -> list:
+    """Retrieve documents by accessing "next_page_url" returned by each request.
+
+    Args:
+        endpoint_url (str): url for documents.{format} endpoint.
+        dict_params (dict): Paramters to pass in GET request.
+
+    Raises:
+        QueryError: Failed to retrieve documents from all pages.
+
+    Returns:
+        list: Documents retrieved from the API.
+    """
     results = []
     response = requests.get(endpoint_url, params=dict_params).json()
     pages = response.get("total_pages")
@@ -122,19 +163,16 @@ def retrieve_results_by_next_page(endpoint_url: str, dict_params: dict) -> list:
     counter = 0
     while next_page_url is not None:
         counter += 1
-        #print(counter)
         results_this_page = response["results"]
         results.extend(results_this_page)
         response = requests.get(next_page_url).json()
         next_page_url = response.get("next_page_url")
-        #print(len(results))
     else:
-        #print(f"Next: {next_page_url}")
         counter += 1
-        #print(counter)
         results_this_page = response["results"]
         results.extend(results_this_page)
-        #print(len(results))
+    
+    # raise exception if failed to access all pages
     if counter != pages:
         raise QueryError(f"Failed to retrieve documents from all {pages} pages.")
     
@@ -272,8 +310,8 @@ def export_data(df: DataFrame,
     print(f"Exported data as csv to {path}.")
 
 
-def main(metadata: dict, input_path: Path = None):
-    """Main function to retrieve Federal Register documents.
+def pipeline(metadata: dict, input_path: Path = None):
+    """Main pipeline for retrieving Federal Register documents.
 
     Args:
         metadata (dict): Agency metadata for cleaning agency names.
@@ -350,7 +388,7 @@ def retrieve_documents():
         agency_metadata.transform()
         metadata = agency_metadata.transformed_data
     
-    # loop for getting inputs, calling main function, and saving data
+    # loop for getting inputs, calling main pipeline function, and saving data
     # won't break until it receives valid input
     while True:
         # print prompt to console
@@ -359,12 +397,12 @@ def retrieve_documents():
         # check user inputs
         if get_input.lower() in ("y", "yes"):
             output_dir, input_dir = create_paths(input_file=True)
-            df2 = main(metadata, input_path=input_dir)
+            df2 = pipeline(metadata, input_path=input_dir)
             export_data(df2, output_dir)
             break
         elif get_input.lower() in ("n", "no"):
             output_dir = create_paths()[0]
-            df = main(metadata)
+            df = pipeline(metadata)
             export_data(df, output_dir)
             break
         else:
