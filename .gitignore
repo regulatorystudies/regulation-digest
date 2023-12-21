@@ -7,7 +7,7 @@ _archive/
 regdigest/input/
 regdigest/output/
 
-#Nuitka files
+# Nuitka files
 *.build/
 *.dist/
 *.cmd
