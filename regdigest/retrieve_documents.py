@@ -4,10 +4,11 @@ Mark Febrizio
 
 Created: 2022-06-13
 
-Last modified: 2023-05-30
+Last modified: 2023-12-14
 """
 # dependencies
-from datetime import date
+from copy import deepcopy
+from datetime import date, timedelta
 import json
 from pathlib import Path
 import re
@@ -15,42 +16,276 @@ import re
 from pandas import DataFrame, read_csv, read_excel
 import requests
 
-from preprocessing import (
-    clean_agency_names, get_parent_agency, 
-    filter_corrections, filter_actions, 
-    extract_rin_info, create_rin_keys, 
-    AgencyMetadata, 
-    )
+try:  # for use as module: python -m regdigest
+    from .preprocessing import (
+        clean_agency_names, 
+        get_parent_agency, 
+        filter_corrections, 
+        filter_actions, 
+        extract_rin_info, 
+        create_rin_keys, 
+        AgencyMetadata, 
+        )
+    from .regex_filters import FILTER_ROUTINE
+    from .duplicates import identify_duplicates, remove_duplicates
+except ImportError:
+    # hacky but allows alternate script to work
+    from preprocessing import (
+        clean_agency_names, 
+        get_parent_agency, 
+        filter_corrections, 
+        filter_actions, 
+        extract_rin_info, 
+        create_rin_keys, 
+        AgencyMetadata, 
+        )
+    from regex_filters import FILTER_ROUTINE
+    from duplicates import identify_duplicates, remove_duplicates
 
-# import constants
-from regex_filters import FILTER_ROUTINE
+
+BASE_PARAMS = {
+    'per_page': 1000, 
+    "page": 0, 
+    'order': "oldest"
+    }
+BASE_URL = r'https://www.federalregister.gov/api/v1/documents.json?'
+
+
+class QueryError(Exception):
+    pass
+
+
+def extract_year(string: str):
+    """Extract date from a string in a format similar to `datetime.time`.
+
+    Args:
+        string (str): Date represented as a string.
+
+    Returns:
+        int: Year attribute of `datetime.date` object.
+    """
+    res = re.compile("\d{4}-\d{2}-\d{2}", re.I).match(string)
+    
+    if isinstance(res, re.Match):
+        return date.fromisoformat(res[0]).year
+    else:
+        return None
+
+
+def date_in_quarter(input_date: date | str, year: str, quarter: tuple):
+    """Checks if given date falls within a year's quarter. 
+    Returns input date if True, otherwise returns last day of quarter.
+
+    Args:
+        input_date (date | str): Date to check.
+        year (str): Year to check against.
+        quarter (tuple): Quarter to check against.
+
+    Raises:
+        TypeError: Inappropriate argument type for 'input_date'.
+
+    Returns:
+        datetime.date: Returns input_date when it falls within range; otherwise returns last day of quarter.
+    """    
+    if isinstance(input_date, date):
+        check_date = input_date
+    elif isinstance(input_date, str):
+        check_date = date.fromisoformat(input_date)
+    else:
+        raise TypeError(f"Inappropriate argument type {type(input_date)} for parameter 'input_date'.")
+    
+    range_start = date.fromisoformat(f"{year}-{quarter[0]}")
+    range_end = date.fromisoformat(f"{year}-{quarter[1]}")
+    if (check_date >= range_start) and (check_date <= range_end):
+        return check_date
+    else:
+        return range_end
 
 
 def query_documents_endpoint(endpoint_url: str, dict_params: dict):
     """GET request for documents endpoint.
 
     Args:
-        endpoint_url (str): url for documents.{format} endpoint.
+        endpoint_url (str): URL for API endpoint.
         dict_params (dict): Paramters to pass in GET request.
 
     Returns:
         tuple[list, int]: Tuple of API results, count of documents retrieved.
     """    
     results, count = [], 0
-    response = requests.get(endpoint_url, params=dict_params)
-    if response.json()["count"] != 0:
-        count += response.json()["count"]  # set variables
-        try:  # for days with multiple pages of results
-            pages = response.json()["total_pages"]  # number of pages to retrieve all results
-            for page in range(1, pages + 1):  # grab results from each page
-                dict_params.update({"page": page})
-                response = requests.get(endpoint_url, params=dict_params)
-                results_this_page = response.json()["results"]
-                results.extend(results_this_page)
-        except:  # when only one page of results
-            results_this_page = response.json()["results"]
-            results.extend(results_this_page)
+    response = requests.get(endpoint_url, params=dict_params).json()
+    max_documents_threshold = 10000
+    
+    if response["count"] == 0:  # handles queries returning no documents
+        pass
+    elif response["count"] > max_documents_threshold:  # handles queries that need multiple requests
+        
+        # set range of years
+        start_year = extract_year(dict_params.get("conditions[publication_date][gte]"))
+        end_date = dict_params.get("conditions[publication_date][lte]")
+        if end_date is None:
+            end_date = date.today()
+            end_year = end_date.year
+        else:
+            end_year = extract_year(end_date)
+        years = range(start_year, end_year + 1)
+        
+        # format: YYYY-MM-DD
+        quarter_tuples = (
+            ("01-01", "03-31"), ("04-01", "06-30"), 
+            ("07-01", "09-30"), ("10-01", "12-31")
+            )
+        
+        # retrieve documents
+        dict_params_qrt = deepcopy(dict_params)
+        for year in years:
+            for quarter in quarter_tuples:            
+                results_qrt = []
+                # update parameters by quarter
+                dict_params_qrt.update({
+                    "conditions[publication_date][gte]": f"{year}-{quarter[0]}", 
+                    "conditions[publication_date][lte]": f"{date_in_quarter(end_date, year, quarter)}"
+                                        })
+                # get documents
+                results_qrt = retrieve_results_by_next_page(endpoint_url, dict_params_qrt)
+                results.extend(results_qrt)
+                count += response["count"]
+                #count += len(results_qrt)
+    elif response["count"] in range(max_documents_threshold + 1):  # handles normal queries
+        count += response["count"]
+        results.extend(retrieve_results_by_next_page(endpoint_url, dict_params))
+    else:
+        raise QueryError(f"Query returned document count of {response['count']}.")
+
+    duplicates = identify_duplicates(results, key="document_number")
+    count_dups = len(duplicates)
+    if count_dups > 0:
+        raise QueryError(f"API request returned {count_dups} duplicate values.")
+    
     return results, count
+
+
+def retrieve_results_by_page_range(num_pages: int, endpoint_url: str, dict_params: dict) -> list:
+    """Retrieve documents by looping over a given number of pages.
+
+    Args:
+        num_pages (int): Number of pages to retrieve documents from.
+        endpoint_url (str): URL for API endpoint.
+        dict_params (dict): Paramters to pass in GET request.
+
+    Returns:
+        list: Documents retrieved from the API.
+    """
+    results, tally = [], 0
+    for page in range(1, num_pages + 1):  # grab results from each page
+        dict_params.update({"page": page})
+        response = requests.get(endpoint_url, params=dict_params)
+        results_this_page = response.json()["results"]
+        results.extend(results_this_page)
+        tally += len(results_this_page)
+    count = response.json()["count"]
+    print(count, tally)
+    return results, count
+
+
+def retrieve_results_by_next_page(endpoint_url: str, dict_params: dict) -> list:
+    """Retrieve documents by accessing "next_page_url" returned by each request.
+
+    Args:
+        endpoint_url (str): url for documents.{format} endpoint.
+        dict_params (dict): Paramters to pass in GET request.
+
+    Raises:
+        QueryError: Failed to retrieve documents from all pages.
+
+    Returns:
+        list: Documents retrieved from the API.
+    """
+    results = []
+    response = requests.get(endpoint_url, params=dict_params).json()
+    pages = response.get("total_pages")
+    next_page_url = response.get("next_page_url")
+    counter = 0
+    while next_page_url is not None:
+        counter += 1
+        results_this_page = response["results"]
+        results.extend(results_this_page)
+        response = requests.get(next_page_url).json()
+        next_page_url = response.get("next_page_url")
+    else:
+        counter += 1
+        results_this_page = response["results"]
+        results.extend(results_this_page)
+    
+    # raise exception if failed to access all pages
+    if counter != pages:
+        raise QueryError(f"Failed to retrieve documents from all {pages} pages.")
+    
+    return results
+
+
+def get_documents_surrounding_date(data: list, 
+                                   date_str: str, 
+                                   date_padding: int, 
+                                   document_count: int, 
+                                   endpoint_url: str, 
+                                   dict_params: dict, 
+                                   unique_id: str):
+    # update params to get documents surrounding missing dates
+    center = date.fromisoformat(date_str)
+    delta = timedelta(days=date_padding)
+    date_range = (center - delta, center + delta)
+    dict_params.update({
+        "conditions[publication_date][gte]": f"{date_range[0]}", 
+        "conditions[publication_date][lte]": f"{date_range[1]}"
+        })
+    
+    # retrieve documents and add to existing results
+    response = requests.get(endpoint_url, params=dict_params).json()
+    data.extend(response["results"])
+    
+    # filter out new duplicates; update validate
+    data, _ = remove_duplicates(data, key=unique_id)
+    print(f"Running total unique: {len(data)}")
+    validate = document_count - len(data)
+    
+    return data, validate
+
+
+def get_missing_documents(existing_data: list, 
+                          document_count: int, 
+                          endpoint_url: str, 
+                          dict_params: dict, 
+                          date_padding: int = 3, 
+                          unique_id: str = "document_number"):
+
+    dups = identify_duplicates(existing_data, key=unique_id)    
+    validate = len(dups)
+    
+    while validate > 0:
+        data_alt = deepcopy(existing_data)
+        dates = (d.get("publication_date") for d in dups)
+        for dt in dates:
+            # get documents surrounding missing dates
+            data_alt, validate = get_documents_surrounding_date(
+                data_alt, 
+                dt, 
+                date_padding, 
+                document_count, 
+                endpoint_url, 
+                dict_params, 
+                unique_id
+                )
+            
+            # validate equals documents returned by initial query minus running total unique
+            if validate == 0:
+                # ends function before looping again or moving to else clauses
+                return data_alt
+        else:
+            date_padding += 1
+    else:
+        print("No missing documents.")
+        return existing_data
 
 
 def get_documents_by_date(start_date: str, 
@@ -70,8 +305,8 @@ def get_documents_by_date(start_date: str,
                                            'regulation_id_number_info', 
                                            #'significant', 
                                            'correction_of'),
-                          endpoint_url: str = r'https://www.federalregister.gov/api/v1/documents.json?'
-                          ):
+                          endpoint_url: str = BASE_URL, 
+                          dict_params: dict = BASE_PARAMS):
     """Retrieve Federal Register documents using a date range.
 
     Args:
@@ -82,19 +317,12 @@ def get_documents_by_date(start_date: str,
 
     Returns:
         tuple[list, int]: Tuple of API results, count of documents retrieved.
-    """    
-    # define parameters
-    res_per_page = 1000
-    page_offset = 0
-    sort_order = 'oldest'
-    
-    # dictionary of parameters
-    dict_params = {'per_page': res_per_page, 
-                   "page": page_offset,
-                   'order': sort_order, 
-                   'fields[]': fields, 
-                   'conditions[publication_date][gte]': f"{start_date}"
-                   }
+    """
+    # update dictionary of parameters
+    dict_params.update({
+        'conditions[publication_date][gte]': f'{start_date}', 
+        'fields[]': fields
+        })
     
     # relies on functionality that empty strings '' are falsey in Python: https://docs.python.org/3/library/stdtypes.html#truth-value-testing
     if end_date:
@@ -191,8 +419,8 @@ def export_data(df: DataFrame,
     print(f"Exported data as csv to {path}.")
 
 
-def main(metadata: dict, input_path: Path = None):
-    """Main function to retrieve Federal Register documents.
+def pipeline(metadata: dict, input_path: Path = None):
+    """Main pipeline for retrieving Federal Register documents.
 
     Args:
         metadata (dict): Agency metadata for cleaning agency names.
@@ -258,8 +486,7 @@ def create_paths(input_file: bool = False) -> list[Path]:
     return dirs
 
 
-if __name__ == "__main__":
-    
+def retrieve_documents():
     # get agency metadata
     try:  # import metadata from local JSON
         metadata_dir = Path(__file__).parent.joinpath("data")
@@ -271,7 +498,7 @@ if __name__ == "__main__":
         agency_metadata.transform()
         metadata = agency_metadata.transformed_data
     
-    # loop for getting inputs, calling main function, and saving data
+    # loop for getting inputs, calling main pipeline function, and saving data
     # won't break until it receives valid input
     while True:
         # print prompt to console
@@ -280,14 +507,18 @@ if __name__ == "__main__":
         # check user inputs
         if get_input.lower() in ("y", "yes"):
             output_dir, input_dir = create_paths(input_file=True)
-            df2 = main(metadata, input_path=input_dir)
+            df2 = pipeline(metadata, input_path=input_dir)
             export_data(df2, output_dir)
             break
         elif get_input.lower() in ("n", "no"):
             output_dir = create_paths()[0]
-            df = main(metadata)
+            df = pipeline(metadata)
             export_data(df, output_dir)
             break
         else:
             print("Invalid input. Must enter 'y' or 'n'.")
 
+
+if __name__ == "__main__":
+    
+    retrieve_documents()
