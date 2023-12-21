@@ -7,7 +7,8 @@ Created: 2022-06-13
 Last modified: 2023-12-14
 """
 # dependencies
-from datetime import date
+from copy import deepcopy
+from datetime import date, timedelta
 import json
 from pathlib import Path
 import re
@@ -26,6 +27,7 @@ try:  # for use as module: python -m regdigest
         AgencyMetadata, 
         )
     from .regex_filters import FILTER_ROUTINE
+    from .duplicates import identify_duplicates, remove_duplicates
 except ImportError:
     # hacky but allows alternate script to work
     from preprocessing import (
@@ -38,6 +40,7 @@ except ImportError:
         AgencyMetadata, 
         )
     from regex_filters import FILTER_ROUTINE
+    from duplicates import identify_duplicates, remove_duplicates
 
 
 BASE_PARAMS = {
@@ -69,6 +72,36 @@ def extract_year(string: str):
         return None
 
 
+def date_in_quarter(input_date: date | str, year: str, quarter: tuple):
+    """Checks if given date falls within a year's quarter. 
+    Returns input date if True, otherwise returns last day of quarter.
+
+    Args:
+        input_date (date | str): Date to check.
+        year (str): Year to check against.
+        quarter (tuple): Quarter to check against.
+
+    Raises:
+        TypeError: Inappropriate argument type for 'input_date'.
+
+    Returns:
+        datetime.date: Returns input_date when it falls within range; otherwise returns last day of quarter.
+    """    
+    if isinstance(input_date, date):
+        check_date = input_date
+    elif isinstance(input_date, str):
+        check_date = date.fromisoformat(input_date)
+    else:
+        raise TypeError(f"Inappropriate argument type {type(input_date)} for parameter 'input_date'.")
+    
+    range_start = date.fromisoformat(f"{year}-{quarter[0]}")
+    range_end = date.fromisoformat(f"{year}-{quarter[1]}")
+    if (check_date >= range_start) and (check_date <= range_end):
+        return check_date
+    else:
+        return range_end
+
+
 def query_documents_endpoint(endpoint_url: str, dict_params: dict):
     """GET request for documents endpoint.
 
@@ -91,28 +124,30 @@ def query_documents_endpoint(endpoint_url: str, dict_params: dict):
         start_year = extract_year(dict_params.get("conditions[publication_date][gte]"))
         end_date = dict_params.get("conditions[publication_date][lte]")
         if end_date is None:
-            end_year = date.today().year
+            end_date = date.today()
+            end_year = end_date.year
         else:
             end_year = extract_year(end_date)
         years = range(start_year, end_year + 1)
         
         # format: YYYY-MM-DD
-        quarter_tuples = [
+        quarter_tuples = (
             ("01-01", "03-31"), ("04-01", "06-30"), 
             ("07-01", "09-30"), ("10-01", "12-31")
-            ]
+            )
         
         # retrieve documents
-        results = []
+        dict_params_qrt = deepcopy(dict_params)
         for year in years:
             for quarter in quarter_tuples:            
                 results_qrt = []
                 # update parameters by quarter
-                dict_params.update({"conditions[publication_date][gte]": f"{year}-{quarter[0]}", 
-                                    "conditions[publication_date][lte]": f"{year}-{quarter[1]}"}
-                                )
+                dict_params_qrt.update({
+                    "conditions[publication_date][gte]": f"{year}-{quarter[0]}", 
+                    "conditions[publication_date][lte]": f"{date_in_quarter(end_date, year, quarter)}"
+                                        })
                 # get documents
-                results_qrt = retrieve_results_by_next_page(endpoint_url, dict_params)
+                results_qrt = retrieve_results_by_next_page(endpoint_url, dict_params_qrt)
                 results.extend(results_qrt)
                 count += response["count"]
                 #count += len(results_qrt)
@@ -122,6 +157,11 @@ def query_documents_endpoint(endpoint_url: str, dict_params: dict):
     else:
         raise QueryError(f"Query returned document count of {response['count']}.")
 
+    duplicates = identify_duplicates(results, key="document_number")
+    count_dups = len(duplicates)
+    if count_dups > 0:
+        raise QueryError(f"API request returned {count_dups} duplicate values.")
+    
     return results, count
 
 
@@ -182,6 +222,70 @@ def retrieve_results_by_next_page(endpoint_url: str, dict_params: dict) -> list:
         raise QueryError(f"Failed to retrieve documents from all {pages} pages.")
     
     return results
+
+
+def get_documents_surrounding_date(data: list, 
+                                   date_str: str, 
+                                   date_padding: int, 
+                                   document_count: int, 
+                                   endpoint_url: str, 
+                                   dict_params: dict, 
+                                   unique_id: str):
+    # update params to get documents surrounding missing dates
+    center = date.fromisoformat(date_str)
+    delta = timedelta(days=date_padding)
+    date_range = (center - delta, center + delta)
+    dict_params.update({
+        "conditions[publication_date][gte]": f"{date_range[0]}", 
+        "conditions[publication_date][lte]": f"{date_range[1]}"
+        })
+    
+    # retrieve documents and add to existing results
+    response = requests.get(endpoint_url, params=dict_params).json()
+    data.extend(response["results"])
+    
+    # filter out new duplicates; update validate
+    data, _ = remove_duplicates(data, key=unique_id)
+    print(f"Running total unique: {len(data)}")
+    validate = document_count - len(data)
+    
+    return data, validate
+
+
+def get_missing_documents(existing_data: list, 
+                          document_count: int, 
+                          endpoint_url: str, 
+                          dict_params: dict, 
+                          date_padding: int = 3, 
+                          unique_id: str = "document_number"):
+
+    dups = identify_duplicates(existing_data, key=unique_id)    
+    validate = len(dups)
+    
+    while validate > 0:
+        data_alt = deepcopy(existing_data)
+        dates = (d.get("publication_date") for d in dups)
+        for dt in dates:
+            # get documents surrounding missing dates
+            data_alt, validate = get_documents_surrounding_date(
+                data_alt, 
+                dt, 
+                date_padding, 
+                document_count, 
+                endpoint_url, 
+                dict_params, 
+                unique_id
+                )
+            
+            # validate equals documents returned by initial query minus running total unique
+            if validate == 0:
+                # ends function before looping again or moving to else clauses
+                return data_alt
+        else:
+            date_padding += 1
+    else:
+        print("No missing documents.")
+        return existing_data
 
 
 def get_documents_by_date(start_date: str, 
@@ -380,6 +484,7 @@ def create_paths(input_file: bool = False) -> list[Path]:
         dirs.append(input_dir)
     
     return dirs
+
 
 def retrieve_documents():
     # get agency metadata
