@@ -469,6 +469,24 @@ DEFAULT_AGENCY_SCHEMA = [
     ]
 
 
+INDEPENDENT_REG_AGENCIES = (
+    'federal-reserve-system',
+    'commodity-futures-trading-commission',
+    'comptroller-of-the-currency',
+    'consumer-financial-protection-bureau',
+    'consumer-product-safety-commission',
+    'federal-communications-commission',
+    'federal-deposit-insurance-corporation',
+    'federal-energy-regulatory-commission',
+    'federal-housing-finance-agency',
+    'federal-maritime-commission',
+    'federal-mine-safety-and-health-review-commission',
+    'federal-trade-commission',
+    'financial-research-office',
+    'IN_PROGRESS'
+)
+
+
 class AgencyMetadata:
     """Class for storing and transforming agency metadata from Federal Register API.
     
@@ -703,7 +721,8 @@ def get_parent_agency(df: DataFrame,
     return df_copy
 
 
-def identify_independent_agencies():
+def identify_independent_reg_agencies():
+    """Based on the definition of independent regulatory agencies defined in [44 U.S.C. 3502(5)](https://www.law.cornell.edu/uscode/text/44/3502)"""
     pass
 
 
