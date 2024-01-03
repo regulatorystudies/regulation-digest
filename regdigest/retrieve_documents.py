@@ -56,7 +56,7 @@ class QueryError(Exception):
 
 
 def extract_year(string: str):
-    """Extract date from a string in a format similar to `datetime.time`.
+    """Extract date from a string in a format similar to `datetime.datetime` or `datetime.date`.
 
     Args:
         string (str): Date represented as a string.
@@ -72,34 +72,55 @@ def extract_year(string: str):
         return None
 
 
-def date_in_quarter(input_date: date | str, year: str, quarter: tuple):
+def convert_to_datetime_date(input_date: date| str):
+    if isinstance(input_date, date):
+        return input_date
+    elif isinstance(input_date, str):
+        return date.fromisoformat(input_date)
+    else:
+        raise TypeError(f"Inappropriate argument type {type(input_date)} for parameter 'input_date'.")
+
+
+def date_in_quarter(input_date: date | str, year: str, quarter: tuple, return_quarter_end: bool = True):
     """Checks if given date falls within a year's quarter. 
-    Returns input date if True, otherwise returns last day of quarter.
+    Returns input date if True, otherwise returns first or last day of quarter.
 
     Args:
         input_date (date | str): Date to check.
         year (str): Year to check against.
         quarter (tuple): Quarter to check against.
+        return_quarter_end (bool, optional): Return end date of quarter when input not in range. Defaults to True.
 
     Raises:
         TypeError: Inappropriate argument type for 'input_date'.
 
     Returns:
-        datetime.date: Returns input_date when it falls within range; otherwise returns last day of quarter.
+        datetime.date: Returns input_date when it falls within range; otherwise returns boundary date of quarter.
     """    
-    if isinstance(input_date, date):
-        check_date = input_date
-    elif isinstance(input_date, str):
-        check_date = date.fromisoformat(input_date)
-    else:
-        raise TypeError(f"Inappropriate argument type {type(input_date)} for parameter 'input_date'.")
-    
+    check_date = convert_to_datetime_date(input_date)
     range_start = date.fromisoformat(f"{year}-{quarter[0]}")
     range_end = date.fromisoformat(f"{year}-{quarter[1]}")
-    if (check_date >= range_start) and (check_date <= range_end):
+    in_range = (check_date >= range_start) and (check_date <= range_end)
+    #return in_range
+    if in_range:
         return check_date
-    else:
+    elif (not in_range) and return_quarter_end:
         return range_end
+    elif (not in_range) and (not return_quarter_end):
+        return range_start
+
+
+def greater_than_date(date_a: date | str, date_b: date | str):
+    """Compare whether a date A occurs after date B.
+
+    Args:
+        date_a (date | str): The first given date.
+        date_b (date | str): The second given date.
+
+    Returns:
+        bool: True if date A occurs after date B.
+    """    
+    return convert_to_datetime_date(date_a) > convert_to_datetime_date(date_b)
 
 
 def query_documents_endpoint(endpoint_url: str, dict_params: dict):
@@ -116,13 +137,19 @@ def query_documents_endpoint(endpoint_url: str, dict_params: dict):
     response = requests.get(endpoint_url, params=dict_params).json()
     max_documents_threshold = 10000
     
-    if response["count"] == 0:  # handles queries returning no documents
+    # handles queries returning no documents
+    if response["count"] == 0:
         pass
-    elif response["count"] > max_documents_threshold:  # handles queries that need multiple requests
+    
+    # handles queries that need multiple requests
+    elif response["count"] > max_documents_threshold:
+        
+        # get range of dates
+        start_date = dict_params.get("conditions[publication_date][gte]")
+        end_date = dict_params.get("conditions[publication_date][lte]")
         
         # set range of years
-        start_year = extract_year(dict_params.get("conditions[publication_date][gte]"))
-        end_date = dict_params.get("conditions[publication_date][lte]")
+        start_year = extract_year(start_date)
         if end_date is None:
             end_date = date.today()
             end_year = end_date.year
@@ -141,19 +168,34 @@ def query_documents_endpoint(endpoint_url: str, dict_params: dict):
         for year in years:
             for quarter in quarter_tuples:            
                 results_qrt = []
+                
+                # set start and end dates based on input date
+                gte = date_in_quarter(start_date, year, quarter, return_quarter_end=False)
+                lte = date_in_quarter(end_date, year, quarter)
+                if greater_than_date(start_date, lte):
+                    # skip quarters where start_date is later than last day of quarter
+                    continue
+                elif greater_than_date(gte, end_date):
+                    # skip quarters where end_date is ealier than first day of quarter
+                    break
+                
                 # update parameters by quarter
                 dict_params_qrt.update({
-                    "conditions[publication_date][gte]": f"{year}-{quarter[0]}", 
-                    "conditions[publication_date][lte]": f"{date_in_quarter(end_date, year, quarter)}"
+                    "conditions[publication_date][gte]": f"{gte}", 
+                    "conditions[publication_date][lte]": f"{lte}"
                                         })
+                
                 # get documents
                 results_qrt = retrieve_results_by_next_page(endpoint_url, dict_params_qrt)
                 results.extend(results_qrt)
                 count += response["count"]
-                #count += len(results_qrt)
-    elif response["count"] in range(max_documents_threshold + 1):  # handles normal queries
+    
+    # handles normal queries
+    elif response["count"] in range(max_documents_threshold + 1):
         count += response["count"]
         results.extend(retrieve_results_by_next_page(endpoint_url, dict_params))
+    
+    # otherwise something went wrong
     else:
         raise QueryError(f"Query returned document count of {response['count']}.")
 
