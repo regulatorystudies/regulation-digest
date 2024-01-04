@@ -727,9 +727,12 @@ def get_parent_agency(df: DataFrame,
     return df_copy
 
 
-def identify_independent_reg_agencies(df, agency_column = "agency_slugs", new_column = "independent_reg_agency"):
+def identify_independent_reg_agencies(df: DataFrame, 
+                                      agency_column: str = "agency_slugs", 
+                                      new_column: str = "independent_reg_agency", 
+                                      independent_agencies: list | tuple = INDEPENDENT_REG_AGENCIES):
     """Based on the definition of independent regulatory agencies defined in [44 U.S.C. 3502(5)](https://www.law.cornell.edu/uscode/text/44/3502)"""
-    pass
+    df[new_column] = df.loc[:, agency_column].copy(deep=True)
 
 
 # only query agencies endpoint when run as script; save that output 
