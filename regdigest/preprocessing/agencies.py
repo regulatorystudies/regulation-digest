@@ -469,21 +469,27 @@ DEFAULT_AGENCY_SCHEMA = [
     ]
 
 
+# source: https://www.law.cornell.edu/uscode/text/44/3502
 INDEPENDENT_REG_AGENCIES = (
     'federal-reserve-system',
     'commodity-futures-trading-commission',
-    'comptroller-of-the-currency',
-    'consumer-financial-protection-bureau',
     'consumer-product-safety-commission',
     'federal-communications-commission',
     'federal-deposit-insurance-corporation',
     'federal-energy-regulatory-commission',
     'federal-housing-finance-agency',
     'federal-maritime-commission',
-    'federal-mine-safety-and-health-review-commission',
     'federal-trade-commission',
+    'interstate-commerce-commission',    
+    'federal-mine-safety-and-health-review-commission',
+    'national-labor-relations-board',
+    'nuclear-regulatory-commission',
+    'occupational-safety-and-health-review-commission',
+    'postal-regulatory-commission',
+    'securities-and-exchange-commission',
+    'consumer-financial-protection-bureau',
     'financial-research-office',
-    'IN_PROGRESS'
+    'comptroller-of-the-currency',
 )
 
 
@@ -721,7 +727,7 @@ def get_parent_agency(df: DataFrame,
     return df_copy
 
 
-def identify_independent_reg_agencies():
+def identify_independent_reg_agencies(df, agency_column = "agency_slugs", new_column = "independent_reg_agency"):
     """Based on the definition of independent regulatory agencies defined in [44 U.S.C. 3502(5)](https://www.law.cornell.edu/uscode/text/44/3502)"""
     pass
 
