@@ -703,6 +703,10 @@ def get_parent_agency(df: DataFrame,
     return df_copy
 
 
+def identify_independent_agencies():
+    pass
+
+
 # only query agencies endpoint when run as script; save that output 
 if __name__ == "__main__":
     

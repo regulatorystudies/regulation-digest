@@ -19,7 +19,7 @@ def extract_rin_info(document: dict,
         tuple_list.append(n_tuple)
         try:
             tuple_list.sort(reverse=True, key=lambda x: x[2])
-        except:
+        except IndexError:
             pass
     
     # only return RIN info from most recent Unified Agenda issue
