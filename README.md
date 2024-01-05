@@ -23,13 +23,23 @@ cd "PATH/TO/YOUR/DIRECTORY/WITH/YML"
 conda env create -f environment.yml
 ```
 
-Your environment can be activated from the command line using `conda activate regdigest`, and the program is now ready to run on your computer. Run the program with your choice of IDE or from the command line:
+Your environment can be activated from the command line using `conda activate regdigest`, and the program is now ready to run on your computer. Run the program with your choice of IDE or from the command line using one of the following approaches:
 
-```{cmd}
-cd "PATH/TO/PROJECT/ROOT"
+- Run `retrieve_documents.py` as a script from an IDE or the command line:
 
-python regdigest/retrieve_documents.py
-```
+    ```{cmd}
+    cd "PATH/TO/PROJECT/ROOT"
+
+    python "./regdigest/retrieve_documents.py"
+    ```
+
+- Run `regdigest` as a module (command line only):
+
+    ```{cmd}
+    cd "PATH/TO/PROJECT/ROOT"
+
+    python -m regdigest
+    ```
 
 ## Directory Structure
 
@@ -43,7 +53,7 @@ The `input/` sub-folder is where you place the input file, if it is being used. 
 
 The `output/` sub-folder is where the output data will be located. It creates data files in comma separated values (CSV) format with the naming convention `federal_register_clips_YYYY-MM-DD`, where the date is the current date. If more than one file is created in a day, it will be overwritten. If the output folder does not exist at runtime, it will be automatically created for you.
 
-The `regdigest/` sub-folder is the module where the program itself is located. The file, `retrieve_documents.py`, contains the code needed to run the program.
+The `regdigest/` sub-folder is the module where the program itself is located. The file, `retrieve_clips_program.py`, contains the code needed to run the program.
 
 ## Usage
 
@@ -68,10 +78,10 @@ Finally, the program will retrieve the documents from the Federal Register, form
 
 The program is compiled for distribution using the Nuitka python package (see [Use Case 4 - Program Distribution](https://nuitka.net/doc/user-manual.html#use-case-4-program-distribution) in the User Manual). Standalone mode produces a folder for distribution to other systems.
 
-The following commands create a `.dist` folder containing the executable `retrieve_documents.exe`. The `--include-data-files` flag is used to include the metadata required to identify parent agencies associated with each document. You can specify the source of the data files and the end location of the files in the compiled dist using `--include-data-files=<source>=<target>`.
+The following commands create a `.dist` folder containing the executable `retrieve_clips_program.exe`. The `--include-data-files` flag is used to include the metadata required to identify parent agencies associated with each document. You can specify the source of the data files and the end location of the files in the compiled dist using `--include-data-files=<source>=<target>`.
 
 ```{cmd}
-cd "PATH/TO/SCRIPT"
+cd "PATH/TO/PROJECT/ROOT"
 
 conda activate regdigest
 

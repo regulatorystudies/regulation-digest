@@ -149,4 +149,3 @@ def filter_actions(df: DataFrame, pattern: str = None, filters: tuple[str] | lis
     
     # return filtered results
     return df_filtered
-
