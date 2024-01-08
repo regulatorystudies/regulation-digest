@@ -8,7 +8,7 @@ Last modified: 2023-12-14
 """
 # dependencies
 from copy import deepcopy
-from datetime import date, timedelta
+from datetime import date
 import json
 from pathlib import Path
 import re
@@ -19,15 +19,18 @@ import requests
 try:  # for use as module: python -m regdigest
     from .preprocessing import (
         clean_agency_names, 
+        clean_agencies_column, 
         get_parent_agency, 
         filter_corrections, 
         filter_actions, 
         extract_rin_info, 
         create_rin_keys, 
         AgencyMetadata, 
+        identify_independent_reg_agencies, 
         )
     from .regex_filters import FILTER_ROUTINE
-    from .duplicates import identify_duplicates, remove_duplicates
+    from .dates import extract_year, date_in_quarter, greater_than_date
+    from .duplicates import identify_duplicates
 except ImportError:
     # hacky but allows alternate script to work
     from preprocessing import (
@@ -38,9 +41,11 @@ except ImportError:
         extract_rin_info, 
         create_rin_keys, 
         AgencyMetadata, 
+        identify_independent_reg_agencies, 
         )
     from regex_filters import FILTER_ROUTINE
-    from duplicates import identify_duplicates, remove_duplicates
+    from dates import extract_year, date_in_quarter, greater_than_date
+    from duplicates import identify_duplicates
 
 
 BASE_PARAMS = {
@@ -53,74 +58,6 @@ BASE_URL = r'https://www.federalregister.gov/api/v1/documents.json?'
 
 class QueryError(Exception):
     pass
-
-
-def extract_year(string: str):
-    """Extract date from a string in a format similar to `datetime.datetime` or `datetime.date`.
-
-    Args:
-        string (str): Date represented as a string.
-
-    Returns:
-        int: Year attribute of `datetime.date` object.
-    """
-    res = re.compile("\d{4}-\d{2}-\d{2}", re.I).match(string)
-    
-    if isinstance(res, re.Match):
-        return date.fromisoformat(res[0]).year
-    else:
-        return None
-
-
-def convert_to_datetime_date(input_date: date| str):
-    if isinstance(input_date, date):
-        return input_date
-    elif isinstance(input_date, str):
-        return date.fromisoformat(input_date)
-    else:
-        raise TypeError(f"Inappropriate argument type {type(input_date)} for parameter 'input_date'.")
-
-
-def date_in_quarter(input_date: date | str, year: str, quarter: tuple, return_quarter_end: bool = True):
-    """Checks if given date falls within a year's quarter. 
-    Returns input date if True, otherwise returns first or last day of quarter.
-
-    Args:
-        input_date (date | str): Date to check.
-        year (str): Year to check against.
-        quarter (tuple): Quarter to check against.
-        return_quarter_end (bool, optional): Return end date of quarter when input not in range. Defaults to True.
-
-    Raises:
-        TypeError: Inappropriate argument type for 'input_date'.
-
-    Returns:
-        datetime.date: Returns input_date when it falls within range; otherwise returns boundary date of quarter.
-    """    
-    check_date = convert_to_datetime_date(input_date)
-    range_start = date.fromisoformat(f"{year}-{quarter[0]}")
-    range_end = date.fromisoformat(f"{year}-{quarter[1]}")
-    in_range = (check_date >= range_start) and (check_date <= range_end)
-    #return in_range
-    if in_range:
-        return check_date
-    elif (not in_range) and return_quarter_end:
-        return range_end
-    elif (not in_range) and (not return_quarter_end):
-        return range_start
-
-
-def greater_than_date(date_a: date | str, date_b: date | str):
-    """Compare whether a date A occurs after date B.
-
-    Args:
-        date_a (date | str): The first given date.
-        date_b (date | str): The second given date.
-
-    Returns:
-        bool: True if date A occurs after date B.
-    """    
-    return convert_to_datetime_date(date_a) > convert_to_datetime_date(date_b)
 
 
 def query_documents_endpoint(endpoint_url: str, dict_params: dict):
@@ -264,70 +201,6 @@ def retrieve_results_by_next_page(endpoint_url: str, dict_params: dict) -> list:
         raise QueryError(f"Failed to retrieve documents from all {pages} pages.")
     
     return results
-
-
-def get_documents_surrounding_date(data: list, 
-                                   date_str: str, 
-                                   date_padding: int, 
-                                   document_count: int, 
-                                   endpoint_url: str, 
-                                   dict_params: dict, 
-                                   unique_id: str):
-    # update params to get documents surrounding missing dates
-    center = date.fromisoformat(date_str)
-    delta = timedelta(days=date_padding)
-    date_range = (center - delta, center + delta)
-    dict_params.update({
-        "conditions[publication_date][gte]": f"{date_range[0]}", 
-        "conditions[publication_date][lte]": f"{date_range[1]}"
-        })
-    
-    # retrieve documents and add to existing results
-    response = requests.get(endpoint_url, params=dict_params).json()
-    data.extend(response["results"])
-    
-    # filter out new duplicates; update validate
-    data, _ = remove_duplicates(data, key=unique_id)
-    print(f"Running total unique: {len(data)}")
-    validate = document_count - len(data)
-    
-    return data, validate
-
-
-def get_missing_documents(existing_data: list, 
-                          document_count: int, 
-                          endpoint_url: str, 
-                          dict_params: dict, 
-                          date_padding: int = 3, 
-                          unique_id: str = "document_number"):
-
-    dups = identify_duplicates(existing_data, key=unique_id)    
-    validate = len(dups)
-    
-    while validate > 0:
-        data_alt = deepcopy(existing_data)
-        dates = (d.get("publication_date") for d in dups)
-        for dt in dates:
-            # get documents surrounding missing dates
-            data_alt, validate = get_documents_surrounding_date(
-                data_alt, 
-                dt, 
-                date_padding, 
-                document_count, 
-                endpoint_url, 
-                dict_params, 
-                unique_id
-                )
-            
-            # validate equals documents returned by initial query minus running total unique
-            if validate == 0:
-                # ends function before looping again or moving to else clauses
-                return data_alt
-        else:
-            date_padding += 1
-    else:
-        print("No missing documents.")
-        return existing_data
 
 
 def get_documents_by_date(start_date: str, 
@@ -496,8 +369,19 @@ def pipeline(metadata: dict, input_path: Path = None):
     df, _ = filter_corrections(df)
     df = filter_actions(df, filters = FILTER_ROUTINE, columns = ["title"])
     df = clean_agency_names(df).set_index("document_number")
+    df = clean_agencies_column(df, metadata)
     df = get_parent_agency(df, metadata)
-    df = df.drop(columns=["regulation_id_number_info", "correction_of", "agencies"])
+    df = identify_independent_reg_agencies(df)
+    df = df.drop(columns=[
+        "regulation_id_number_info", 
+        "correction_of", 
+        "agencies", 
+        "agency_slugs",
+        "agencies_id_uq", 
+        "agencies_slug_uq",
+        "agencies_acronym_uq", 
+        "agencies_name_uq", 
+        ])
     
     # return data
     return df
