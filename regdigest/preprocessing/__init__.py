@@ -11,7 +11,6 @@ __all__ = [
     ]
 
 from .agencies import (
-    DEFAULT_AGENCY_SCHEMA, 
     AgencyMetadata,
     clean_agencies_column,
     clean_agency_names,
@@ -28,4 +27,3 @@ from .rin import (
     extract_rin_info, 
     create_rin_keys, 
     )
-
