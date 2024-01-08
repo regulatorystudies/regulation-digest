@@ -56,8 +56,70 @@ BASE_PARAMS = {
 BASE_URL = r'https://www.federalregister.gov/api/v1/documents.json?'
 
 
+# -- functions for handling API requests -- #
+
+
 class QueryError(Exception):
     pass
+
+
+def retrieve_results_by_page_range(num_pages: int, endpoint_url: str, dict_params: dict) -> list:
+    """Retrieve documents by looping over a given number of pages.
+
+    Args:
+        num_pages (int): Number of pages to retrieve documents from.
+        endpoint_url (str): URL for API endpoint.
+        dict_params (dict): Paramters to pass in GET request.
+
+    Returns:
+        list: Documents retrieved from the API.
+    """
+    results, tally = [], 0
+    for page in range(1, num_pages + 1):  # grab results from each page
+        dict_params.update({"page": page})
+        response = requests.get(endpoint_url, params=dict_params)
+        results_this_page = response.json()["results"]
+        results.extend(results_this_page)
+        tally += len(results_this_page)
+    count = response.json()["count"]
+    print(count, tally)
+    return results, count
+
+
+def retrieve_results_by_next_page(endpoint_url: str, dict_params: dict) -> list:
+    """Retrieve documents by accessing "next_page_url" returned by each request.
+
+    Args:
+        endpoint_url (str): url for documents.{format} endpoint.
+        dict_params (dict): Paramters to pass in GET request.
+
+    Raises:
+        QueryError: Failed to retrieve documents from all pages.
+
+    Returns:
+        list: Documents retrieved from the API.
+    """
+    results = []
+    response = requests.get(endpoint_url, params=dict_params).json()
+    pages = response.get("total_pages")
+    next_page_url = response.get("next_page_url")
+    counter = 0
+    while next_page_url is not None:
+        counter += 1
+        results_this_page = response["results"]
+        results.extend(results_this_page)
+        response = requests.get(next_page_url).json()
+        next_page_url = response.get("next_page_url")
+    else:
+        counter += 1
+        results_this_page = response["results"]
+        results.extend(results_this_page)
+    
+    # raise exception if failed to access all pages
+    if counter != pages:
+        raise QueryError(f"Failed to retrieve documents from all {pages} pages.")
+    
+    return results
 
 
 def query_documents_endpoint(endpoint_url: str, dict_params: dict):
@@ -144,63 +206,7 @@ def query_documents_endpoint(endpoint_url: str, dict_params: dict):
     return results, count
 
 
-def retrieve_results_by_page_range(num_pages: int, endpoint_url: str, dict_params: dict) -> list:
-    """Retrieve documents by looping over a given number of pages.
-
-    Args:
-        num_pages (int): Number of pages to retrieve documents from.
-        endpoint_url (str): URL for API endpoint.
-        dict_params (dict): Paramters to pass in GET request.
-
-    Returns:
-        list: Documents retrieved from the API.
-    """
-    results, tally = [], 0
-    for page in range(1, num_pages + 1):  # grab results from each page
-        dict_params.update({"page": page})
-        response = requests.get(endpoint_url, params=dict_params)
-        results_this_page = response.json()["results"]
-        results.extend(results_this_page)
-        tally += len(results_this_page)
-    count = response.json()["count"]
-    print(count, tally)
-    return results, count
-
-
-def retrieve_results_by_next_page(endpoint_url: str, dict_params: dict) -> list:
-    """Retrieve documents by accessing "next_page_url" returned by each request.
-
-    Args:
-        endpoint_url (str): url for documents.{format} endpoint.
-        dict_params (dict): Paramters to pass in GET request.
-
-    Raises:
-        QueryError: Failed to retrieve documents from all pages.
-
-    Returns:
-        list: Documents retrieved from the API.
-    """
-    results = []
-    response = requests.get(endpoint_url, params=dict_params).json()
-    pages = response.get("total_pages")
-    next_page_url = response.get("next_page_url")
-    counter = 0
-    while next_page_url is not None:
-        counter += 1
-        results_this_page = response["results"]
-        results.extend(results_this_page)
-        response = requests.get(next_page_url).json()
-        next_page_url = response.get("next_page_url")
-    else:
-        counter += 1
-        results_this_page = response["results"]
-        results.extend(results_this_page)
-    
-    # raise exception if failed to access all pages
-    if counter != pages:
-        raise QueryError(f"Failed to retrieve documents from all {pages} pages.")
-    
-    return results
+# -- retrieve documents using date range -- #
 
 
 def get_documents_by_date(start_date: str, 
@@ -245,6 +251,9 @@ def get_documents_by_date(start_date: str,
     
     results, count = query_documents_endpoint(endpoint_url, dict_params)
     return results, count
+
+
+# -- retrieve documents using input file -- #
 
 
 def get_documents_by_number(document_numbers: list, 
@@ -319,6 +328,9 @@ def parse_document_numbers(path: Path,
     return document_numbers
 
 
+# -- utils -- #
+
+
 def export_data(df: DataFrame, 
                 path: Path, 
                 file_name: str = f"federal_register_clips_{date.today()}.csv"):
@@ -332,6 +344,34 @@ def export_data(df: DataFrame,
     with open(path / file_name, "w", encoding = "utf-8") as f:
         df.to_csv(f, lineterminator="\n")
     print(f"Exported data as csv to {path}.")
+
+
+def create_paths(input_file: bool = False) -> list[Path]:
+    """Create paths for input and output data.
+
+    Args:
+        input_file (bool, optional): True if using input file. Defaults to False.
+
+    Returns:
+        list[Path]: List of path-like objects.
+    """    
+    dirs = []
+    p = Path(__file__)
+    output_dir = p.parents[1].joinpath("output")
+    dirs.append(output_dir)
+    
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True, exist_ok=True)
+    
+    if input_file:  # create input directory if using input file
+        input_dir = p.parents[1].joinpath("input")
+        input_dir.mkdir(parents=True, exist_ok=True)
+        dirs.append(input_dir)
+    
+    return dirs
+
+
+# -- main functions -- #
 
 
 def pipeline(metadata: dict, input_path: Path = None):
@@ -385,31 +425,6 @@ def pipeline(metadata: dict, input_path: Path = None):
     
     # return data
     return df
-
-
-def create_paths(input_file: bool = False) -> list[Path]:
-    """Create paths for input and output data.
-
-    Args:
-        input_file (bool, optional): True if using input file. Defaults to False.
-
-    Returns:
-        list[Path]: List of path-like objects.
-    """    
-    dirs = []
-    p = Path(__file__)
-    output_dir = p.parents[1].joinpath("output")
-    dirs.append(output_dir)
-    
-    if not output_dir.exists():
-        output_dir.mkdir(parents=True, exist_ok=True)
-    
-    if input_file:  # create input directory if using input file
-        input_dir = p.parents[1].joinpath("input")
-        input_dir.mkdir(parents=True, exist_ok=True)
-        dirs.append(input_dir)
-    
-    return dirs
 
 
 def retrieve_documents():
