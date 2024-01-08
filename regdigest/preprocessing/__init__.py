@@ -15,7 +15,8 @@ from .agencies import (
     AgencyMetadata,
     clean_agencies_column,
     clean_agency_names,
-    get_parent_agency,
+    get_parent_agency, 
+    identify_independent_reg_agencies, 
     )
 
 from .filter import (
