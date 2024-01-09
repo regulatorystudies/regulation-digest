@@ -295,8 +295,26 @@ def get_documents_by_number(document_numbers: list,
     return results, count
 
 
-def parse_document_numbers(path: Path, 
-                           pattern: str = r"[\w|\d]{2,4}-[\d]{5,}"):
+def extract_document_numbers(df: DataFrame, pattern: str = r"[\w|\d]{2,4}-[\d]{5,}") -> list[str]:
+    """Extract list of Federal Register document numbers from a DataFrame.
+
+    Args:
+        df (DataFrame): Input data.
+        pattern (str, optional): Regex pattern for identifying document numbers from url. Defaults to r"[\w|\d]{2,4}-[\d]{5,}".
+
+    Returns:
+        list[str]: _description_
+    """
+    if 'document_number' in df.columns:
+        document_numbers = df['document_number'].values.tolist()
+    else:
+        url_list = df['html_url'].values.tolist()
+        document_numbers = [re.search(pattern, url).group(0) for url in url_list]
+    
+    return document_numbers
+
+
+def parse_document_numbers(path: Path):
     """Parse Federal Register document numbers from input data file.
 
     Args:
@@ -317,15 +335,9 @@ def parse_document_numbers(path: Path,
         with open(file, "rb") as f:
             df = read_excel(f)
     else:
-        raise ValueError("Input file must be CSV or Excel spreadsheet.")    
+        raise ValueError("Input file must be CSV or Excel spreadsheet.")
     
-    if 'document_number' in df.columns:
-        document_numbers = df['document_number'].values.tolist()
-    else:
-        url_list = df['html_url'].values.tolist()
-        document_numbers = [re.search(pattern, url).group(0) for url in url_list]
-    
-    return document_numbers
+    return extract_document_numbers(df)
 
 
 # -- utils -- #
