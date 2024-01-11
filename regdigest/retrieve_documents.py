@@ -27,6 +27,7 @@ try:  # for use as module: python -m regdigest
         create_rin_keys, 
         AgencyMetadata, 
         identify_independent_reg_agencies, 
+        get_significant_info, 
         )
     from .regex_filters import FILTER_ROUTINE
     from .dates import extract_year, date_in_quarter, greater_than_date
@@ -42,6 +43,7 @@ except ImportError:
         create_rin_keys, 
         AgencyMetadata, 
         identify_independent_reg_agencies, 
+        get_significant_info, 
         )
     from regex_filters import FILTER_ROUTINE
     from dates import extract_year, date_in_quarter, greater_than_date
@@ -395,7 +397,7 @@ def pipeline(metadata: dict, input_path: Path = None):
 
     Returns:
         DataFrame: Output data.
-    """    
+    """
     if not input_path:  # date range        
         while True:  # doesn't exit until correctly formatted input received
             pattern = r"\d{4}-[0-1]\d{1}-[0-3]\d{1}"
@@ -424,6 +426,11 @@ def pipeline(metadata: dict, input_path: Path = None):
     df = clean_agencies_column(df, metadata)
     df = get_parent_agency(df, metadata)
     df = identify_independent_reg_agencies(df)
+    df = df.reset_index()
+    document_numbers = df.loc[:, "document_number"].to_numpy().tolist()
+    if not input_path:
+        start_date = "2023-04-06"
+    df = get_significant_info(df, start_date, document_numbers)
     df = df.drop(columns=[
         "regulation_id_number_info", 
         "correction_of", 
@@ -436,7 +443,7 @@ def pipeline(metadata: dict, input_path: Path = None):
         ])
     
     # return data
-    return df
+    return df.set_index("document_number")
 
 
 def retrieve_documents():
