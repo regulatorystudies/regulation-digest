@@ -5,7 +5,6 @@ dependencies:
 - git=2.34.1
 - ipykernel=6.19.2
 - numpy=1.24.3
-- openpyxl=3.0.10
 - pandas=1.5.3
 - pip=23.0.1
 - python=3.10.13
@@ -14,6 +13,7 @@ dependencies:
   - nuitka==1.9.6
   - ordered-set==4.1.0
   - oyaml==1.0
+  - polars==0.20.3
   - pyyaml==6.0.1
   - zstandard==0.22.0
 prefix: C:\Users\mark\anaconda3\envs\regdigest
