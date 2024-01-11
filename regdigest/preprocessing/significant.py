@@ -6,6 +6,7 @@
 
 from datetime import date
 import polars as pl
+from pandas import DataFrame as pd_DataFrame
 
 
 def read_csv_data(start_date: date | str, 
@@ -34,35 +35,55 @@ def read_csv_data(start_date: date | str,
     except pl.ComputeError:
         df = pl.read_csv(url, columns=cols, encoding="utf8-lossy")
     
-    return df
+    return df, cols
 
 
 def clean_data(df: pl.DataFrame, 
                document_numbers: list, 
-               clean_columns: list | tuple = (
-                   "document_number",
-                   "significant", 
-                   "econ_significant", 
-                   "3(f)(1) significant", 
-                   "Major"
-                   )):
-    # strip whitespace
-    df = df.with_columns(pl.col("document_number").str.strip_chars())
+               clean_columns: list | tuple, 
+               return_optimized_plan = False
+               ):
     
-    # remove null values
-    df = df.filter(pl.col("document_number").is_not_null())
+    # start a lazy query
+    lf = (
+        df.lazy()
+        # strip whitespace
+        .with_columns(pl.col("document_number").str.strip_chars())
+        # only keep document_numbers from input
+        .filter(pl.col("document_number").is_in(document_numbers))
+        # cast to nullable int dtype
+        .with_columns(pl.col(c for c in clean_columns if c != "document_number").cast(pl.Int64, strict=False))
+        )
     
-    # cast to nullable int dtype    
-    df = df.with_columns(pl.col(clean_columns)).cast(pl.Int64, strict=False)
+    # return optimized query plan instead of df
+    if return_optimized_plan:
+        return lf.explain(optimized=True)
     
-    return df.filter(
-            pl.col("document_number").is_in(document_numbers)
-                )
+    # call collect to return df
+    return lf.collect()
+
+
+def merge_with_api_results(pd_df: pd_DataFrame, 
+                           pl_df: pl.DataFrame
+                           ):
+    
+    main_df = pl.from_pandas(pd_df)
+    df = main_df.join(pl_df, on="document_number", how="left", validate="1:1")
+    return df.to_pandas()
+
+
+def get_significant_info(input_df, start_date, document_numbers):
+    
+    pl_df, clean_cols = read_csv_data(start_date)
+    pl_df = clean_data(pl_df, document_numbers, clean_cols)
+    pd_df = merge_with_api_results(input_df, pl_df)
+    return pd_df
 
 
 if __name__ == "__main__":
     
-    start = "2023-04-01"
+    date_a = "2023-04-05"
+    date_b = "2023-04-06"
     numbers = [
         "2021-01303", 
         '2023-28006', 
@@ -75,11 +96,13 @@ if __name__ == "__main__":
         '2024-00228',
         '2024-00187'
         ]
+
+    # test for dates before EO 14094
+    df_a, clean_cols = read_csv_data(date_a)
+    df_a = clean_data(df_a, numbers, clean_cols)
     
-    df = read_csv_data(start)
-    df = clean_data(df, numbers)
-    print(len(df))
-
-
-#schema = df.schema
-#schema.update({""})
+    # test for dates after EO 14094
+    df_b, clean_cols = read_csv_data(date_b)
+    df_b = clean_data(df_b, numbers, clean_cols)
+    
+    print(df_a.shape, df_b.shape)

@@ -1,13 +1,14 @@
 """
 Module: preprocessing for FR Clips
 Author: Mark Febrizio
-Last revised: 2023-05-25
+Last revised: 2024-01-11
 """
 
 __all__ = [
     "agencies", 
     "filter", 
     "rin", 
+    "significant", 
     ]
 
 from .agencies import (
@@ -26,4 +27,8 @@ from .filter import (
 from .rin import (
     extract_rin_info, 
     create_rin_keys, 
+    )
+
+from .significant import (
+    get_significant_info
     )
