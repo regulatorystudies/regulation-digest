@@ -9,7 +9,9 @@ Last modified: 2023-12-14
 # dependencies
 from copy import deepcopy
 from datetime import date
+import functools
 import json
+import logging
 from pathlib import Path
 import re
 
@@ -27,6 +29,7 @@ try:  # for use as module: python -m regdigest
         create_rin_keys, 
         AgencyMetadata, 
         identify_independent_reg_agencies, 
+        get_significant_info, 
         )
     from .regex_filters import FILTER_ROUTINE
     from .dates import extract_year, date_in_quarter, greater_than_date
@@ -35,6 +38,7 @@ except ImportError:
     # hacky but allows alternate script to work
     from preprocessing import (
         clean_agency_names, 
+        clean_agencies_column, 
         get_parent_agency, 
         filter_corrections, 
         filter_actions, 
@@ -42,6 +46,7 @@ except ImportError:
         create_rin_keys, 
         AgencyMetadata, 
         identify_independent_reg_agencies, 
+        get_significant_info, 
         )
     from regex_filters import FILTER_ROUTINE
     from dates import extract_year, date_in_quarter, greater_than_date
@@ -395,7 +400,7 @@ def pipeline(metadata: dict, input_path: Path = None):
 
     Returns:
         DataFrame: Output data.
-    """    
+    """
     if not input_path:  # date range        
         while True:  # doesn't exit until correctly formatted input received
             pattern = r"\d{4}-[0-1]\d{1}-[0-3]\d{1}"
@@ -424,6 +429,11 @@ def pipeline(metadata: dict, input_path: Path = None):
     df = clean_agencies_column(df, metadata)
     df = get_parent_agency(df, metadata)
     df = identify_independent_reg_agencies(df)
+    df = df.reset_index()
+    document_numbers = df.loc[:, "document_number"].to_numpy().tolist()
+    if not input_path:
+        start_date = "2023-04-06"
+    df = get_significant_info(df, start_date, document_numbers)
     df = df.drop(columns=[
         "regulation_id_number_info", 
         "correction_of", 
@@ -436,10 +446,34 @@ def pipeline(metadata: dict, input_path: Path = None):
         ])
     
     # return data
-    return df
+    return df.set_index("document_number")
 
 
+def log_errors(func, filepath: Path = Path(__file__).parents[1] / "error.log"):
+    """Decorator for logging errors in given file.
+    Supply a value for 'filepath' to change the default name or location of the error log.
+    Defaults to filepath = Path(__file__).parents[1]/"error.log".
+    """    
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            func(*args, **kwargs)
+        except Exception as err:
+            logging.basicConfig(
+                filename=filepath, 
+                encoding="utf-8", 
+                format= "-----\n%(asctime)s -- %(levelname)s", 
+                datefmt="%Y-%m-%d %H:%M:%S"
+                )
+            logging.exception("\n")
+            print(f"Logged error ({err}) in {filepath.name}. Exiting program.")
+    return wrapper
+
+
+@log_errors
 def retrieve_documents():
+    """Command-line interface for retrieving documents.
+    """    
     # get agency metadata
     try:  # import metadata from local JSON
         metadata_dir = Path(__file__).parent.joinpath("data")
