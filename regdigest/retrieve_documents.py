@@ -106,7 +106,7 @@ def retrieve_results_by_next_page(endpoint_url: str, dict_params: dict) -> list:
     """
     results = []
     response = requests.get(endpoint_url, params=dict_params).json()
-    pages = response.get("total_pages")
+    pages = response.get("total_pages", 1)
     next_page_url = response.get("next_page_url")
     counter = 0
     while next_page_url is not None:
@@ -122,7 +122,7 @@ def retrieve_results_by_next_page(endpoint_url: str, dict_params: dict) -> list:
     
     # raise exception if failed to access all pages
     if counter != pages:
-        raise QueryError(f"Failed to retrieve documents from all {pages} pages.")
+        raise QueryError(f"Failed to retrieve documents from {pages} pages.")
     
     return results
 
@@ -229,7 +229,6 @@ def get_documents_by_date(start_date: str,
                                            'type', 
                                            'action', 
                                            'regulation_id_number_info', 
-                                           #'significant', 
                                            'correction_of'),
                           endpoint_url: str = BASE_URL, 
                           dict_params: dict = BASE_PARAMS):
@@ -275,7 +274,6 @@ def get_documents_by_number(document_numbers: list,
                                              'type', 
                                              'action', 
                                              'regulation_id_number_info', 
-                                             #'significant', 
                                              'correction_of'), 
                             sort_data: bool = True
                             ):
@@ -311,7 +309,7 @@ def extract_document_numbers(df: DataFrame, pattern: str = r"[\w|\d]{2,4}-[\d]{5
         list[str]: _description_
     """
     if 'document_number' in df.columns:
-        document_numbers = df['document_number'].values.tolist()
+        document_numbers = [f"{doc}".strip() for doc in df['document_number'].to_numpy()]
     else:
         url_list = df['html_url'].values.tolist()
         document_numbers = [re.search(pattern, url).group(0) for url in url_list]
@@ -388,67 +386,6 @@ def create_paths(input_file: bool = False) -> list[Path]:
     return dirs
 
 
-# -- main functions -- #
-
-
-def pipeline(metadata: dict, input_path: Path = None):
-    """Main pipeline for retrieving Federal Register documents.
-
-    Args:
-        metadata (dict): Agency metadata for cleaning agency names.
-        input_path (Path, optional): Path to input with documents to retrieve. Defaults to None.
-
-    Returns:
-        DataFrame: Output data.
-    """
-    if not input_path:  # date range        
-        while True:  # doesn't exit until correctly formatted input received
-            pattern = r"\d{4}-[0-1]\d{1}-[0-3]\d{1}"
-            start_date = input("Input start date [yyyy-mm-dd]: ")
-            match_1 = re.fullmatch(pattern, start_date, flags=re.I)
-            end_date = input("Input end date [yyyy-mm-dd]. Or just press enter to use today as the end date: ")
-            match_2 = re.fullmatch(pattern, end_date, flags=re.I)
-            if match_1 and (match_2 or end_date==""):
-                results, _ = get_documents_by_date(start_date, end_date=end_date)
-                break
-            else:
-                print("Invalid input. Must enter dates in format 'yyyy-mm-dd'.")
-    
-    else:  # input file
-        document_numbers = parse_document_numbers(input_path) 
-        results, _ = get_documents_by_number(document_numbers)
-    
-    # get rin info for documents; returns generator of dict
-    results_with_rin_info = (create_rin_keys(doc, extract_rin_info(doc)) for doc in results)
-
-    # create DataFrame; filter out documents; clean agency info; drop unneeded columns
-    df = DataFrame(list(results_with_rin_info))
-    df, _ = filter_corrections(df)
-    df = filter_actions(df, filters = FILTER_ROUTINE, columns = ["title"])
-    df = clean_agency_names(df).set_index("document_number")
-    df = clean_agencies_column(df, metadata)
-    df = get_parent_agency(df, metadata)
-    df = identify_independent_reg_agencies(df)
-    df = df.reset_index()
-    document_numbers = df.loc[:, "document_number"].to_numpy().tolist()
-    if not input_path:
-        start_date = "2023-04-06"
-    df = get_significant_info(df, start_date, document_numbers)
-    df = df.drop(columns=[
-        "regulation_id_number_info", 
-        "correction_of", 
-        "agencies", 
-        "agency_slugs",
-        "agencies_id_uq", 
-        "agencies_slug_uq",
-        "agencies_acronym_uq", 
-        "agencies_name_uq", 
-        ])
-    
-    # return data
-    return df.set_index("document_number")
-
-
 def log_errors(func, filepath: Path = Path(__file__).parents[1] / "error.log"):
     """Decorator for logging errors in given file.
     Supply a value for 'filepath' to change the default name or location of the error log.
@@ -470,16 +407,83 @@ def log_errors(func, filepath: Path = Path(__file__).parents[1] / "error.log"):
     return wrapper
 
 
+# -- main functions -- #
+
+
+def pipeline(metadata: dict, input_path: Path = None):
+    """Main pipeline for retrieving Federal Register documents.
+
+    Args:
+        metadata (dict): Agency metadata for cleaning agency names.
+        input_path (Path, optional): Path to input with documents to retrieve. Defaults to None.
+
+    Returns:
+        DataFrame: Output data.
+    """
+    if not input_path:  # date range        
+        while True:  # doesn't exit until correctly formatted input received
+            pattern = r"\d{4}-[0-1]\d{1}-[0-3]\d{1}"
+            start_date = input("Input start date [yyyy-mm-dd]: ")
+            match_1 = re.fullmatch(pattern, start_date, flags=re.I)
+            end_date = input("Input end date [yyyy-mm-dd]. Or just press enter to use today as the end date: ")
+            match_2 = re.fullmatch(pattern, end_date, flags=re.I)
+            if match_1 and (match_2 or end_date==""):
+                results, count = get_documents_by_date(start_date, end_date=end_date)
+                break
+            else:
+                print("Invalid input. Must enter dates in format 'yyyy-mm-dd'.")
+    
+    else:  # input file
+        start_date = "2023-04-06"
+        document_numbers = parse_document_numbers(input_path) 
+        results, count = get_documents_by_number(document_numbers)
+    
+    if count == 0:
+        print("No documents returned.")
+        return None
+    
+    # get rin info for documents; returns generator of dict
+    results_with_rin_info = (create_rin_keys(doc, extract_rin_info(doc)) for doc in results)
+
+    # create DataFrame; filter out documents; clean agency info; drop unneeded columns
+    df = DataFrame(list(results_with_rin_info))
+    df, _ = filter_corrections(df)
+    df = filter_actions(df, filters = FILTER_ROUTINE, columns = ["title"])
+    df = clean_agency_names(df).set_index("document_number")
+    df = clean_agencies_column(df, metadata)
+    df = get_parent_agency(df, metadata)
+    df = identify_independent_reg_agencies(df)
+    df = df.reset_index()
+    document_numbers = df.loc[:, "document_number"].to_numpy().tolist()
+    df = get_significant_info(df, start_date, document_numbers)
+    df = df.drop(
+        columns=[
+            "regulation_id_number_info", 
+            "correction_of", 
+            "agencies", 
+            "agency_slugs",
+            "agencies_id_uq", 
+            "agencies_slug_uq",
+            "agencies_acronym_uq", 
+            "agencies_name_uq", 
+            ], 
+        errors="ignore"
+        )
+    
+    # return data
+    return df.set_index("document_number")
+
+
 @log_errors
 def retrieve_documents():
     """Command-line interface for retrieving documents.
     """    
     # get agency metadata
-    try:  # import metadata from local JSON
-        metadata_dir = Path(__file__).parent.joinpath("data")
-        with open(metadata_dir / "agencies_endpoint_metadata.json", "r") as f:
+    metadata_dir = Path(__file__).parent.joinpath("data") / "agencies_endpoint_metadata.json"
+    if metadata_dir.is_file():  # import metadata from local JSON
+        with open(metadata_dir, "r") as f:
             metadata = json.load(f)["results"]
-    except:  # retrieve from API
+    else:  # retrieve from API
         agency_metadata = AgencyMetadata()
         agency_metadata.get_metadata()
         agency_metadata.transform()
@@ -494,16 +498,17 @@ def retrieve_documents():
         # check user inputs
         if get_input.lower() in ("y", "yes"):
             output_dir, input_dir = create_paths(input_file=True)
-            df2 = pipeline(metadata, input_path=input_dir)
-            export_data(df2, output_dir)
+            df = pipeline(metadata, input_path=input_dir)
             break
         elif get_input.lower() in ("n", "no"):
             output_dir = create_paths()[0]
             df = pipeline(metadata)
-            export_data(df, output_dir)
             break
         else:
             print("Invalid input. Must enter 'y' or 'n'.")
+    
+    if df is not None:
+        export_data(df, output_dir)
 
 
 if __name__ == "__main__":
