@@ -38,13 +38,14 @@ def create_rin_keys(document: dict,
     
     # source: rin_info tuples (RIN, Priority, UA issue)
     if not values:
-        document_copy.update({"rin": None, 
-                         "rin_priority": None}
-                        )
+        document_copy.update({
+            "rin": None, 
+            "rin_priority": None
+            })
     else:
-        document_copy.update({"rin": values[0], 
-                         "rin_priority": values[1]}
-                        )
+        document_copy.update({
+            "rin": values[0], 
+            "rin_priority": values[1]
+            })
     
     return document_copy
-
