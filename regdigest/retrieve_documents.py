@@ -9,7 +9,9 @@ Last modified: 2023-12-14
 # dependencies
 from copy import deepcopy
 from datetime import date
+import functools
 import json
+import logging
 from pathlib import Path
 import re
 
@@ -36,6 +38,7 @@ except ImportError:
     # hacky but allows alternate script to work
     from preprocessing import (
         clean_agency_names, 
+        clean_agencies_column, 
         get_parent_agency, 
         filter_corrections, 
         filter_actions, 
@@ -446,7 +449,31 @@ def pipeline(metadata: dict, input_path: Path = None):
     return df.set_index("document_number")
 
 
+def log_errors(func, filepath: Path = Path(__file__).parents[1] / "error.log"):
+    """Decorator for logging errors in given file.
+    Supply a value for 'filepath' to change the default name or location of the error log.
+    Defaults to filepath = Path(__file__).parents[1]/"error.log".
+    """    
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            func(*args, **kwargs)
+        except Exception as err:
+            logging.basicConfig(
+                filename=filepath, 
+                encoding="utf-8", 
+                format= "-----\n%(asctime)s -- %(levelname)s", 
+                datefmt="%Y-%m-%d %H:%M:%S"
+                )
+            logging.exception("\n")
+            print(f"Logged error ({err}) in {filepath.name}. Exiting program.")
+    return wrapper
+
+
+@log_errors
 def retrieve_documents():
+    """Command-line interface for retrieving documents.
+    """    
     # get agency metadata
     try:  # import metadata from local JSON
         metadata_dir = Path(__file__).parent.joinpath("data")
