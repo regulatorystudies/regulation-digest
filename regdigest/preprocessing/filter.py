@@ -101,9 +101,7 @@ def filter_corrections(df: DataFrame):
     
     # filter out corrections
     # 1. Using correction fields
-    bool_na = array(df["correction_of"].isna())
-    #df_filtered = df.loc[bool_na, :]  # keep when correction_of is missing
-    #print(f"correction_of missing: {sum(bool_na)}")
+    bool_na = df.loc[:, "correction_of"].isna().to_numpy()
     
     # 2. Searching other fields
     search_1 = search_columns(df, [r"^C[\d]"], ["document_number"], 
@@ -111,8 +109,6 @@ def filter_corrections(df: DataFrame):
     search_2 = search_columns(df, [r"(?:;\scorrection\b)|(?:\bcorrecting\samend[\w]+\b)"], ["title", "action"], 
                                  return_column="indicator2")
     bool_search = array(search_1["indicator1"] == 1) | array(search_2["indicator2"] == 1)
-    #print(f"Flagged documents: {sum(bool_search)}")
-    #bool_search = array(search_2["indicator2"] == 1)
     
     # separate corrections from non-corrections
     df_no_corrections = df.loc[(bool_na & ~bool_search), cols]  # remove flagged documents
