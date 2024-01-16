@@ -6,6 +6,7 @@ retrieve_clips_program/
 _archive/
 regdigest/input/
 regdigest/output/
+test_program*/
 
 # Mac OS
 .DS_Store
