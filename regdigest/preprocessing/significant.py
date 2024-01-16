@@ -9,16 +9,21 @@ import polars as pl
 from pandas import DataFrame as pd_DataFrame
 
 
-def read_csv_data(start_date: date | str, 
-                  retrieve_columns: list | tuple = (
-                      "document_number",
-                      "significant", 
-                      "econ_significant", 
-                      "3(f)(1) significant", 
-                      "Major"
-                      ), 
-                  url: str = r"https://raw.githubusercontent.com/regulatorystudies/Reg-Stats/main/data/fr_tracking/fr_tracking.csv"
-                  ):
+class ImportError(Exception):
+    pass
+
+
+def read_csv_data(
+    start_date: date | str, 
+    retrieve_columns: list | tuple = (
+        "document_number",
+        "significant", 
+        "econ_significant", 
+        "3(f)(1) significant", 
+        "Major"
+        ), 
+    url: str = r"https://raw.githubusercontent.com/regulatorystudies/Reg-Stats/main/data/fr_tracking/fr_tracking.csv"
+    ):
     # handle dates formatted as str
     if isinstance(start_date, str):
         start_date = date.fromisoformat(start_date)
@@ -35,7 +40,12 @@ def read_csv_data(start_date: date | str,
     except pl.ComputeError:
         df = pl.read_csv(url, columns=cols, encoding="utf8-lossy")
     
-    return df, cols
+    if df.shape[1] == len(cols):
+        return df, cols
+    else:
+        #print(f"Shape of imported df: {df.shape}")
+        #raise ImportError("Error importing DataFrame from GitHub.")
+        return None, cols
 
 
 def clean_data(df: pl.DataFrame, 
@@ -75,6 +85,9 @@ def merge_with_api_results(pd_df: pd_DataFrame,
 def get_significant_info(input_df, start_date, document_numbers):
     
     pl_df, clean_cols = read_csv_data(start_date)
+    if pl_df is None:
+        print("Failed to integrate significance tracking data with retrieved documents.")
+        return input_df
     pl_df = clean_data(pl_df, document_numbers, clean_cols)
     pd_df = merge_with_api_results(input_df, pl_df)
     return pd_df
@@ -99,10 +112,10 @@ if __name__ == "__main__":
 
     # test for dates before EO 14094
     df_a, clean_cols = read_csv_data(date_a)
-    df_a = clean_data(df_a, numbers, clean_cols)
+    #df_a = clean_data(df_a, numbers, clean_cols)
     
     # test for dates after EO 14094
     df_b, clean_cols = read_csv_data(date_b)
-    df_b = clean_data(df_b, numbers, clean_cols)
+    #df_b = clean_data(df_b, numbers, clean_cols)
     
-    print(df_a.shape, df_b.shape)
+    #print(df_a.shape, df_b.shape)
