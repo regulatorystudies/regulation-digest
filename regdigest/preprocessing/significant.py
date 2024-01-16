@@ -41,6 +41,12 @@ def read_csv_data(
         df = pl.read_csv(url, columns=cols, encoding="utf8-lossy")
     
     if df.shape[1] == len(cols):
+        # rename columns if they exist
+        rename_cols = {"3(f)(1) significant": "3f1_significant", "Major": "major"}
+        if all(True if rename in cols else False for rename in rename_cols.keys()):
+            df = df.rename(rename_cols)
+            cols = [rename_cols.get(col, col) for col in cols]
+        
         return df, cols
     else:
         #print(f"Shape of imported df: {df.shape}")
@@ -118,4 +124,5 @@ if __name__ == "__main__":
     df_b, clean_cols = read_csv_data(date_b)
     #df_b = clean_data(df_b, numbers, clean_cols)
     
+    #df_b.rename({"test": "test1"})
     #print(df_a.shape, df_b.shape)
