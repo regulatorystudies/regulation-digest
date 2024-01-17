@@ -493,7 +493,7 @@ def retrieve_documents():
     # won't break until it receives valid input
     while True:
         # print prompt to console
-        get_input = input("Use input file? [yes/no]: ")
+        get_input = input("Use input file containing document numbers or urls? [yes/no]: ")
         
         # check user inputs
         if get_input.lower() in ("y", "yes"):
