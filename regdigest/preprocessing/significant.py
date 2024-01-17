@@ -1,16 +1,12 @@
-# gather details on rule significance
-# retrieve FR tracking data
-# isolate significance columns
-# merge with retrieved documents (on document_number)
-
+# gather details on rule significance from FR tracking document
+# see: https://github.com/regulatorystudies/Reg-Stats/blob/main/data/fr_tracking/fr_tracking.csv
 
 from datetime import date
 import polars as pl
-from pandas import DataFrame as pd_DataFrame
-
-
-class ImportError(Exception):
-    pass
+from pandas import (
+    DataFrame as pd_DataFrame, 
+    read_csv as pd_read_csv, 
+    )
 
 
 def read_csv_data(
@@ -34,11 +30,12 @@ def read_csv_data(
     else:
         cols = list(retrieve_columns)
     
-    # read csv; try lossy encoding if raises error
+    # read csv; try different encoding if raises error
     try:
-        df = pl.read_csv(url, columns=cols)
-    except pl.ComputeError:
-        df = pl.read_csv(url, columns=cols, encoding="utf8-lossy")
+        df_pd = pd_read_csv(url, usecols=cols)
+    except UnicodeDecodeError:
+        df_pd = pd_read_csv(url, usecols=cols, encoding="latin")
+    df = pl.from_pandas(df_pd)
     
     if df.shape[1] == len(cols):
         # rename columns if they exist
@@ -49,8 +46,6 @@ def read_csv_data(
         
         return df, cols
     else:
-        #print(f"Shape of imported df: {df.shape}")
-        #raise ImportError("Error importing DataFrame from GitHub.")
         return None, cols
 
 
@@ -67,8 +62,10 @@ def clean_data(df: pl.DataFrame,
         .with_columns(pl.col("document_number").str.strip_chars())
         # only keep document_numbers from input
         .filter(pl.col("document_number").is_in(document_numbers))
+        # temporarily format "not available" data (input as dots)
+        #.with_columns(pl.col(c for c in clean_columns if c != "document_number").str.replace(".", "9", literal=True))
         # cast to nullable int dtype
-        .with_columns(pl.col(c for c in clean_columns if c != "document_number").cast(pl.Int64, strict=False))
+        #.with_columns(pl.col(c for c in clean_columns if c != "document_number").cast(pl.Int64, strict=False))
         )
     
     # return optimized query plan instead of df
@@ -118,11 +115,11 @@ if __name__ == "__main__":
 
     # test for dates before EO 14094
     df_a, clean_cols = read_csv_data(date_a)
-    #df_a = clean_data(df_a, numbers, clean_cols)
+    df_a = clean_data(df_a, numbers, clean_cols)
     
     # test for dates after EO 14094
     df_b, clean_cols = read_csv_data(date_b)
-    #df_b = clean_data(df_b, numbers, clean_cols)
+    df_b = clean_data(df_b, numbers, clean_cols)
     
     #df_b.rename({"test": "test1"})
     #print(df_a.shape, df_b.shape)
