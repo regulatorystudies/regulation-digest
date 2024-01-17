@@ -52,6 +52,7 @@ def read_csv_data(
 def clean_data(df: pl.DataFrame, 
                document_numbers: list, 
                clean_columns: list | tuple, 
+               #format_not_available_values: str = ".", 
                return_optimized_plan = False
                ):
     
@@ -63,7 +64,7 @@ def clean_data(df: pl.DataFrame,
         # only keep document_numbers from input
         .filter(pl.col("document_number").is_in(document_numbers))
         # temporarily format "not available" data (input as dots)
-        #.with_columns(pl.col(c for c in clean_columns if c != "document_number").str.replace(".", "9", literal=True))
+        #.with_columns(pl.col(c for c in clean_columns if c != "document_number").str.replace_all(".", f"{format_not_available_values}", literal=True))
         # cast to nullable int dtype
         #.with_columns(pl.col(c for c in clean_columns if c != "document_number").cast(pl.Int64, strict=False))
         )
