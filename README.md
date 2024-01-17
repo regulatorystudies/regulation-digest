@@ -58,9 +58,11 @@ The `regdigest/` sub-folder is the module where the program itself is located. T
 ## Usage
 
 After running the program, a window with a text field will open on your computer. It may take several seconds to appear. Initially, the dialog box will read:
-> `Use input file? [yes/no]:`
+> `Use input file containing document numbers or urls? [yes/no]:`
 
-Decide whether you want to use an input file to supply document numbers to the program, or whether you want to retrieve documents within a date range. If you want to use the input file, ensure it is in the `input/` sub-folder, then type `yes` or `y`. If not, type `no` or `n`. If an invalid response is received, the program will ask again.
+Decide whether you want to use an input file to supply document numbers to the program, or whether you want to retrieve documents within a date range. The program searches the input file for either a column named "document_number" (which contains the document numbers of Federal Register documents) or a column named "html_url" (which contains the url link to the Federal Register document).
+
+If you want to use the input file, ensure it is in the `input/` sub-folder, then type `yes` or `y`. If not, type `no` or `n`. If an invalid response is received, the program will ask again.
 
 If you are using a date range, the dialog box will read:
 > `Input start date [yyyy-mm-dd]:`
