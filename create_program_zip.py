@@ -44,6 +44,18 @@ def move_dist(program_name: str):
         print("No program to copy.")
 
 
+def clean_folders(program_path: Path, folders: list | tuple = ("input", "output")):
+    for folder in folders:
+        dir_list = []
+        for obj in program_path.joinpath(folder).rglob("*"):
+            if obj.is_file():
+                obj.unlink()
+            elif obj.is_dir():
+                dir_list.append(obj)
+        for dir in dir_list:
+            dir.rmdir()
+
+
 def create_zip(
         program_name: str, 
         path_dict: dict = None, 
@@ -58,6 +70,7 @@ def create_zip(
     else:
         raise MissingPathError("No program path supplied.")
     
+    clean_folders(program_path)
     zip_res = shutil.make_archive(f"{program_name}_{get_sys_platform()}", "zip", program_path)
     if Path(zip_res).exists():
         print(f"Created zip file at {zip_res}.")
