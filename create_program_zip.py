@@ -115,5 +115,7 @@ def main(
 
 
 if __name__ == "__main__":
-
+    
+    #program_path = Path(__file__).parent.joinpath("test_program")
+    #clean_folders(program_path)
     main("retrieve_clips_program")
