@@ -6,7 +6,7 @@ Last revised: 2024-01-11
 
 __all__ = [
     "agencies", 
-    "filter", 
+    "filters", 
     "rin", 
     "significant", 
     ]
@@ -19,7 +19,7 @@ from .agencies import (
     identify_independent_reg_agencies, 
     )
 
-from .filter import (
+from .filters import (
     filter_corrections, 
     filter_actions, 
     )
