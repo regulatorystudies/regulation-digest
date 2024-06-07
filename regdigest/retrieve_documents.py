@@ -218,7 +218,7 @@ def main():
                 end_date = input("Input end date [yyyy-mm-dd]. Or just press enter to use today as the end date: ")
                 match_2 = re.fullmatch(pattern, end_date, flags=re.I)
                 if match_1 and (match_2 or end_date==""):
-                    print(type(end_date), f"{end_date=}")
+                    #print(type(end_date), f"{end_date=}", len(end_date), sep=r" | ")
                     df = retrieve_documents(start_date=start_date, end_date=end_date)
                     break
                 else:
