@@ -98,8 +98,10 @@ def main(
         zip_only_ok: bool = True, 
         default_path = Path(__file__).parent
     ):
-    
-    create_release(__release__, file_path=default_path.joinpath(program_name))
+    program_path = default_path.joinpath(program_name)
+    if not program_path.is_dir():
+        program_path.mkdir(parents=True, exist_ok=True)
+    create_release(__release__, file_path=program_path)
     path_dict = move_dist(program_name)
     if path_dict is not None:
         zipped = create_zip(program_name, path_dict=path_dict)
