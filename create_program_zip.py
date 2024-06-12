@@ -9,8 +9,7 @@ class MissingPathError(Exception):
     pass
 
 
-def get_sys_platform(sys_platform: str = sys.platform):
-    
+def _get_sys_platform(sys_platform: str = sys.platform):
     if sys_platform.startswith("win"):
         acronym = "win"
     elif sys_platform.startswith("darwin"):
@@ -22,8 +21,7 @@ def get_sys_platform(sys_platform: str = sys.platform):
     return acronym
 
 
-def move_dist(program_name: str):
-    
+def _move_dist(program_name: str):
     p = Path(__file__)
     dist_path = p.parent.joinpath(f"{program_name}.dist")
     new_dist_path = p.parent.joinpath(program_name, f"{program_name}.dist")
@@ -44,9 +42,23 @@ def move_dist(program_name: str):
         print("No program to copy.")
 
 
-def clean_folders(program_path: Path, folders: list | tuple = ("input", "output")):
+def _copy_docs(src_path: Path, dst_path: Path, files: tuple[str] | list[str] = ("README.md", "LICENSE", )):
+    for file in files:
+        path_to_file = src_path / file
+        if path_to_file.is_file():
+            shutil.copy2(path_to_file, dst_path)
+    
+
+def _create_folders(program_path: Path, folders: list[str] | tuple[str] = ("input", "output")):
     for folder in folders:
-        dir_list = []
+        folder_path = program_path / folder
+        if not folder_path.is_dir():
+            folder_path.mkdir(parents=True, exist_ok=True)
+
+
+def _clean_folders(program_path: Path, folders: list[str] | tuple[str] = ("input", "output")):
+    for folder in folders:
+        dir_list: list[Path] = []
         for obj in program_path.joinpath(folder).rglob("*"):
             if obj.is_file():
                 obj.unlink()
@@ -56,7 +68,7 @@ def clean_folders(program_path: Path, folders: list | tuple = ("input", "output"
             dir.rmdir()
 
 
-def create_zip(
+def _create_zip(
         program_name: str, 
         path_dict: dict = None, 
         supply_path: bool = False, 
@@ -70,8 +82,9 @@ def create_zip(
     else:
         raise MissingPathError("No program path supplied.")
     
-    clean_folders(program_path)
-    zip_res = shutil.make_archive(f"{program_name}_{get_sys_platform()}", "zip", program_path)
+    _create_folders(program_path)
+    _clean_folders(program_path)
+    zip_res = shutil.make_archive(f"{program_name}_{_get_sys_platform()}", "zip", program_path)
     if Path(zip_res).exists():
         print(f"Created zip file at {zip_res}.")
         return True
@@ -79,7 +92,7 @@ def create_zip(
         return False
 
 
-def create_release(release_info: dict | str, file_path: Path, system = sys.platform):
+def _create_release(release_info: dict | str, file_path: Path, system = sys.platform):
     
     system_list = [f"system: {system}"]
     if isinstance(release_info, str):
@@ -96,20 +109,21 @@ def create_release(release_info: dict | str, file_path: Path, system = sys.platf
 def main(
         program_name: str, 
         zip_only_ok: bool = True, 
-        default_path = Path(__file__).parent
+        root_path = Path(__file__).parent
     ):
-    program_path = default_path.joinpath(program_name)
+    program_path = root_path.joinpath(program_name)
     if not program_path.is_dir():
         program_path.mkdir(parents=True, exist_ok=True)
-    create_release(__release__, file_path=program_path)
-    path_dict = move_dist(program_name)
+    _create_release(__release__, file_path=program_path)
+    _copy_docs(root_path, program_path)
+    path_dict = _move_dist(program_name)
     if path_dict is not None:
-        zipped = create_zip(program_name, path_dict=path_dict)
+        zipped = _create_zip(program_name, path_dict=path_dict)
         dist_path = path_dict.get("dist_path")
         shutil.rmtree(dist_path)
     elif (path_dict is None) and zip_only_ok:
-        program_path = default_path.joinpath(program_name)
-        zipped = create_zip(program_name, supply_path=True, program_path=program_path)
+        program_path = root_path.joinpath(program_name)
+        zipped = _create_zip(program_name, supply_path=True, program_path=program_path)
     else:
         zipped = False
         print("Failed to create zip file.")
@@ -118,6 +132,4 @@ def main(
 
 if __name__ == "__main__":
     
-    #program_path = Path(__file__).parent.joinpath("test_program")
-    #clean_folders(program_path)
     main("retrieve_clips_program")
