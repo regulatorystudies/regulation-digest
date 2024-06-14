@@ -14,7 +14,6 @@ def read_csv_data(
     start_date: date | str, 
     retrieve_columns: list | tuple = (
         "document_number",
-        "citation",
         "significant", 
         "econ_significant", 
         "3(f)(1) significant", 
