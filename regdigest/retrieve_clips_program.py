@@ -1,5 +1,5 @@
-from retrieve_documents import retrieve_documents
+from retrieve_documents import main
 
 if __name__ == "__main__":
     
-    retrieve_documents()
+    main()

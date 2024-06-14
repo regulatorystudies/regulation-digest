@@ -8,6 +8,9 @@ regdigest/input/
 regdigest/output/
 test_program*/
 
+# shiny
+rsconnect-python/
+
 # Mac OS
 .DS_Store
 
