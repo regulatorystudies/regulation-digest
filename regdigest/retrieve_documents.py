@@ -144,9 +144,8 @@ def retrieve_documents(
         document_numbers = parse_document_numbers(input_path) 
         results, count = get_documents_by_number(document_numbers, fields=FIELDS)
         start_date = min(date.fromisoformat(d.get("publication_date", f"{date.today()}")) for d in results)
-        print(start_date)
     else:
-        raise TypeError
+        raise TypeError("Parameter 'input_path' must be type `Path` or `str`.")
     
     if count == 0:
         print("No documents returned.")
