@@ -80,7 +80,6 @@ def merge_with_api_results(
     ):    
     main_df = pl.from_pandas(pd_df)
     df = main_df.join(pl_df, on="document_number", how="left", validate="1:1")
-    print(df)
     return df.to_pandas()
 
 
