@@ -1,29 +1,34 @@
 # regulation-digest
 
-Retrieving and processing Federal Register documents for the GW Regulatory Studies Center [Regulation Digest](https://regulatorystudies.columbian.gwu.edu/newsletters).
+Retrieving and processing Federal Register (FR) documents for the GW Regulatory Studies Center [Regulation Digest](https://regulatorystudies.columbian.gwu.edu/newsletters).
 
 ## Installation
 
 There are two options for running the program:
 
-  1. Download a Python interpreter, create the environment, and run script (Python required).
-  2. Download the compiled program file (created using [Nuitka](https://nuitka.net/)), unzip, and run (Python not required).
+  1. Download a Python interpreter, create the virtual environment, and run script (Python required).
+  2. Access the [web app](https://regulatorystudies.shinyapps.io/regulation-digest/) and either browse or download the FR documents in .csv format (Python not required).
 
-This README document focuses on option 1. Please reach out to <mfebrizio@gwu.edu> for access to the compiled program.
+This README document focuses on option 1.
 
-First, install a Python interpreter to run the code. Some suggested download options are from [Anaconda](https://www.anaconda.com/download) or [Python.org](https://www.python.org/downloads/). The program was developed using Python 3.10, so that is the recommended version.
+First, install a Python interpreter to run the code. Some suggested download options are from [Anaconda](https://www.anaconda.com/download) or [Python.org](https://www.python.org/downloads/). The program was requires Python 3.10 or higher.
 
 Second, download the code by [cloning](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) this Github repository.
 
-Third, create a separate environment for running the program. This is easy to do with conda using the environment.yml contained in this repository. Enter the following commands in Anaconda Powershell Prompt:
+Third, create a separate virtual environment for running the program. This is easy to do with the `venv` module in the [Python standard library](https://docs.python.org/3/library/venv.html) and the `requirements.txt` file in this repository. Enter the following commands in the terminal / command line:
 
 ```{cmd}
-cd "PATH/TO/YOUR/DIRECTORY/WITH/YML"
+cd "PATH/TO/YOUR/LOCAL/PROJECT/DIRECTORY/"
 
-conda env create -f environment.yml
+python -m venv myenv  # where myenv is your virtual environment's name
+
+myvenv/scripts/activate  # activate on Windows
+source myvenv/bin/activate  # activate on macOS/linux
+
+python -m pip install -r requirements.txt
 ```
 
-Your environment can be activated from the command line using `conda activate regdigest`, and the program is now ready to run on your computer. Run the program with your choice of IDE or from the command line using one of the following approaches:
+After activating your virtual environment and installing the requirements, the program is now ready to run on your computer. You can run the program with your choice of IDE or from the command line using one of the following approaches:
 
 - Run `retrieve_documents.py` as a script from an IDE or the command line:
 
@@ -53,7 +58,7 @@ The `input/` sub-folder is where you place the input file, if it is being used. 
 
 The `output/` sub-folder is where the output data will be located. It creates data files in comma separated values (CSV) format with the naming convention `federal_register_clips_YYYY-MM-DD`, where the date is the current date. If more than one file is created in a day, it will be overwritten. If the output folder does not exist at runtime, it will be automatically created for you.
 
-The `regdigest/` sub-folder is the module where the program itself is located. The file, `retrieve_clips_program.py`, contains the code needed to run the program.
+The `regdigest/` sub-folder is the module where the program itself is located. The file, `retrieve_documents.py`, contains the code needed to run the program.
 
 ## Usage
 
@@ -76,19 +81,11 @@ Either supply the end date or press enter to proceed. If an invalid response is 
 
 Finally, the program will retrieve the documents from the Federal Register, format them, and create an CSV file with today's date in the `output/` sub-folder.
 
-## Compiling the Program
+## Deploying the Web App
 
-The program is compiled for distribution using the Nuitka python package (see [Use Case 4 - Program Distribution](https://nuitka.net/doc/user-manual.html#use-case-4-program-distribution) in the User Manual). Standalone mode produces a folder for distribution to other systems.
+The program was developed as a [web app](https://regulatorystudies.shinyapps.io/regulation-digest/) for distribution using the [Shiny for Python](https://shiny.posit.co/py/) package. The app is deployed using the [shinyapps.io hosted service](https://regulatorystudies.shinyapps.io/regulation-digest/).
 
-The following commands create a `.dist` folder containing the executable `retrieve_clips_program.exe`. The `--include-data-files` flag is used to include the metadata required to identify parent agencies associated with each document. You can specify the source of the data files and the end location of the files in the compiled dist using `--include-data-files=<source>=<target>`.
-
-```{cmd}
-cd "PATH/TO/PROJECT/ROOT"
-
-conda activate regdigest
-
-python -m nuitka --standalone --remove-output --include-data-files=./data/agencies_endpoint_metadata.json=data/agencies_endpoint_metadata.json retrieve_documents.py
-```
+After installing and configuring the `rsconnect-python` package (see instructions [here](https://docs.posit.co/shinyapps.io/guide/getting_started/#working-with-shiny-for-python)), you can deploy updates to the app using the `deploy.bat` script in the repository.
 
 ## Contact
 
