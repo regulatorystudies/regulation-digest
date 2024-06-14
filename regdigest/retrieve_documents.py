@@ -162,7 +162,7 @@ def retrieve_documents(
     df = DataFrame(results)
     df, _ = filter_corrections(df)
     df = filter_actions(df, filters = FILTER_ROUTINE, columns = ["title"])
-    document_numbers = df.loc[:, "document_number"].to_numpy().tolist()
+    document_numbers = df.loc[:, "document_number"].to_list()
     df = get_significant_info(df, start_date, document_numbers)
     df = df.astype({"independent_reg_agency": "int64"}, errors="ignore")
     df = df.sort_values(["publication_date", "document_number"])
