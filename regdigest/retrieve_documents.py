@@ -144,9 +144,8 @@ def retrieve_documents(
         document_numbers = parse_document_numbers(input_path) 
         results, count = get_documents_by_number(document_numbers, fields=FIELDS)
         start_date = min(date.fromisoformat(d.get("publication_date", f"{date.today()}")) for d in results)
-        print(start_date)
     else:
-        raise TypeError
+        raise TypeError("Parameter 'input_path' must be type `Path` or `str`.")
     
     if count == 0:
         print("No documents returned.")
@@ -162,7 +161,7 @@ def retrieve_documents(
     df = DataFrame(results)
     df, _ = filter_corrections(df)
     df = filter_actions(df, filters = FILTER_ROUTINE, columns = ["title"])
-    document_numbers = df.loc[:, "document_number"].to_numpy().tolist()
+    document_numbers = df.loc[:, "document_number"].to_list()
     df = get_significant_info(df, start_date, document_numbers)
     df = df.astype({"independent_reg_agency": "int64"}, errors="ignore")
     df = df.sort_values(["publication_date", "document_number"])

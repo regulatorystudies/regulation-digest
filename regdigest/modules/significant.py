@@ -45,15 +45,14 @@ def read_csv_data(
             df = df.rename(rename_cols)
             cols = [rename_cols.get(col, col) for col in cols]
         
-        return df, cols
+        # return unique documents to fix possible manual entry errors in fr-tracking.csv
+        return df.unique(subset="document_number", keep="any")
     else:
-        return None, cols
+        return None
 
 
 def clean_data(df: pl.DataFrame, 
                document_numbers: list, 
-               clean_columns: list | tuple, 
-               #format_not_available_values: str = ".", 
                return_optimized_plan = False
                ):
     
@@ -64,10 +63,6 @@ def clean_data(df: pl.DataFrame,
         .with_columns(pl.col("document_number").str.strip_chars())
         # only keep document_numbers from input
         .filter(pl.col("document_number").is_in(document_numbers))
-        # temporarily format "not available" data (input as dots)
-        #.with_columns(pl.col(c for c in clean_columns if c != "document_number").str.replace_all(".", f"{format_not_available_values}", literal=True))
-        # cast to nullable int dtype
-        #.with_columns(pl.col(c for c in clean_columns if c != "document_number").cast(pl.Int64, strict=False))
         )
     
     # return optimized query plan instead of df
@@ -78,10 +73,10 @@ def clean_data(df: pl.DataFrame,
     return lf.collect()
 
 
-def merge_with_api_results(pd_df: pd_DataFrame, 
-                           pl_df: pl.DataFrame
-                           ):
-    
+def merge_with_api_results(
+        pd_df: pd_DataFrame, 
+        pl_df: pl.DataFrame, 
+    ):    
     main_df = pl.from_pandas(pd_df)
     df = main_df.join(pl_df, on="document_number", how="left", validate="1:1")
     return df.to_pandas()
@@ -89,11 +84,11 @@ def merge_with_api_results(pd_df: pd_DataFrame,
 
 def get_significant_info(input_df, start_date, document_numbers):
     
-    pl_df, clean_cols = read_csv_data(start_date)
+    pl_df = read_csv_data(start_date)
     if pl_df is None:
         print("Failed to integrate significance tracking data with retrieved documents.")
         return input_df
-    pl_df = clean_data(pl_df, document_numbers, clean_cols)
+    pl_df = clean_data(pl_df, document_numbers)
     pd_df = merge_with_api_results(input_df, pl_df)
     return pd_df
 
@@ -116,12 +111,9 @@ if __name__ == "__main__":
         ]
 
     # test for dates before EO 14094
-    df_a, clean_cols = read_csv_data(date_a)
-    df_a = clean_data(df_a, numbers, clean_cols)
+    df_a = read_csv_data(date_a)
+    df_a = clean_data(df_a, numbers)
     
     # test for dates after EO 14094
-    df_b, clean_cols = read_csv_data(date_b)
-    df_b = clean_data(df_b, numbers, clean_cols)
-    
-    #df_b.rename({"test": "test1"})
-    #print(df_a.shape, df_b.shape)
+    df_b = read_csv_data(date_b)
+    df_b = clean_data(df_b, numbers)
