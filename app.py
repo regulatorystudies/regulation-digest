@@ -48,5 +48,5 @@ def get_data():
         return DataFrame(columns=SHOW_COLUMNS)
     else:
         results = results.reset_index()
-        results.loc[:, "url"] = [fr"https://www.federalregister.gov/d/{r}" for r in results["document_number"]to_list()]
+        results.loc[:, "url"] = [fr"https://www.federalregister.gov/d/{r}" for r in results["document_number"].to_list()]
         return results
