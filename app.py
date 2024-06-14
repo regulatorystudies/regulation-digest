@@ -8,12 +8,14 @@ from shiny.express import input, render, ui
 
 from regdigest.retrieve_documents import retrieve_documents
 
+# end date defaults to today's date
 TODAY = date.today()
 
-# start date
+# start date defaults to the previous thursday (or today if it's thursday)
 LAST_THU = TODAY + relativedelta(weekday=TH(-1))
 
-SHOW_COLUMNS = ["publication_date", "parent_agency_names", "title", "action", "citation", "url", "significant", "3f1_significant", ]
+# columns to show under Browse Data
+SHOW_COLUMNS = ["publication_date", "parent_agency_names", "title", "action", "url", "significant", "3f1_significant", ]
 
 ui.page_opts(title="Retrieve FR Clips for the Regulation Digest", fillable=True)
 
@@ -22,13 +24,13 @@ ui.input_date_range(
     "Date range:", 
     start=LAST_THU, 
     end=TODAY, 
-    ) #, width="100%")
+    )
 
 
 @render.download(label="Download Data as CSV", filename=f"federal_register_clips_{TODAY}.csv")
 async def download():
     await asyncio.sleep(0.25)
-    yield get_data().to_csv(index=False)
+    yield get_data().drop(columns="url", errors="ignore").to_csv(index=False)
 
 
 ui.input_action_button("view", "Browse Data", )
