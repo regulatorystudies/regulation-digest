@@ -6,7 +6,7 @@ from pandas import DataFrame
 from shiny import reactive
 from shiny.express import input, render, ui
 
-from regdigest.retrieve_documents import retrieve_documents
+from retrieve_documents import retrieve_documents
 
 # end date defaults to today's date
 TODAY = date.today()
