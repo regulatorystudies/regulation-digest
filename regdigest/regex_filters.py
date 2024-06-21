@@ -65,7 +65,7 @@ FILTER_ROUTINE = [
     r"Coastwise\sEndorsement\sEligibility\sDetermination\s.+\sVessel",
     r"Controlled\sSubstances\sApplication",
     r"Countervailing\sDuty",
-    r"Day,\s202",
+    r"Day,\s202\d",
     r"Decision\sand\sOrder$",
     r"Delegation\sof\sAuthority",
     r"Deletion",
@@ -80,7 +80,7 @@ FILTER_ROUTINE = [
     r"Information\sCollection",
     r"Institution\sof\sFive-Year\sReviews$",
     r"Modification\sof\sClass",
-    r"Month,\s202",
+    r"Month,\s202\d",
     r"Notice\sof\sApplication",
     r"Notice\sof\sAuthorization",
     r"Notice\sof\sAvailability\sof",
@@ -123,6 +123,6 @@ FILTER_ROUTINE = [
     r"Tribal-State\sClass\sIII",
     r"VOR\sFederal\sAirways",
     r"Was\sNot\sWithdrawn\sFrom\sSale\sfor\sReasons\sof\sSafety\sor\sEffectiveness$",
-    r"Week, 202",
+    r"Week,\s202\d",
    
     ]
