@@ -50,6 +50,7 @@ numpy==1.26.4
     #   -r requirements.in
     #   fr-toolbelt
     #   pandas
+    #   pyarrow
 packaging==24.1
     # via
     #   htmltools
@@ -64,6 +65,8 @@ progress==1.6
     # via fr-toolbelt
 prompt-toolkit==3.0.36
     # via questionary
+pyarrow==16.1.0
+    # via -r requirements.in
 pyjwt==2.8.0
     # via rsconnect-python
 python-dateutil==2.9.0.post0
