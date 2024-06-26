@@ -11,7 +11,7 @@ There are two options for running the program:
 
 This README document focuses on option 1.
 
-First, install a Python interpreter to run the code. Some suggested download options are from [Anaconda](https://www.anaconda.com/download) or [Python.org](https://www.python.org/downloads/). The program was requires Python 3.10 or higher.
+First, install a Python interpreter to run the code. Some suggested download options are from [Anaconda](https://www.anaconda.com/download) or [Python.org](https://www.python.org/downloads/). The program requires Python 3.10 or higher.
 
 Second, download the code by [cloning](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) this Github repository.
 

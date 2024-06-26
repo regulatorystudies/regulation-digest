@@ -1,0 +1,10 @@
+# base requirements to develop and deploy app
+python-dateutil==2.9.0.post0
+fr-toolbelt==0.1.2
+numpy==1.26.4
+pandas==2.2.2
+polars==0.20.31
+pyarrow==16.1.0
+requests==2.32.3
+rsconnect_python==1.24.0
+shiny==0.10.2

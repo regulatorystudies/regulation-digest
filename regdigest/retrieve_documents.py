@@ -126,6 +126,7 @@ def retrieve_documents(
         start_date: str | date = None, 
         end_date: str | date = None, 
         input_path: Path = None, 
+        test_filters: bool = False,
     ):
     """Main pipeline for retrieving Federal Register documents.
 
@@ -160,7 +161,10 @@ def retrieve_documents(
     
     df = DataFrame(results)
     df, _ = filter_corrections(df)
-    df = filter_actions(df, filters = FILTER_ROUTINE, columns = ["title"])
+    if test_filters:
+        _, df_flagged = filter_actions(df, filters = FILTER_ROUTINE, columns = ["title"])
+        return df_flagged
+    df, _ = filter_actions(df, filters = FILTER_ROUTINE, columns = ["title"])
     document_numbers = df.loc[:, "document_number"].to_list()
     df = get_significant_info(df, start_date, document_numbers)
     df = df.astype({"independent_reg_agency": "int64"}, errors="ignore")
