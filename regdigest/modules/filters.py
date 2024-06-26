@@ -128,20 +128,23 @@ def filter_actions(df: DataFrame, pattern: str = None, filters: tuple[str] | lis
     
     if pattern:
         regex = pattern
-        #print(f"used pattern: {regex}")
     else:
         filter_groups = (f"(?:{filter})" for filter in filters)
         regex = fr"{'|'.join(filter_groups)}"
-        #print(f"used filters: {regex}")
     
     # Searching fields
-    search = search_columns(df, [regex], list(columns), 
-                                 return_column="indicator")
+    search = search_columns(
+        df, 
+        [regex], 
+        list(columns), 
+        return_column="indicator"
+        )
     bool_search = array(search["indicator"] == 1)
-    print(f"{list(bool_search).count(True)} documents filtered out.")
+    print(f"{sum(bool_search)} documents filtered out.")
+    df_flagged = df.loc[bool_search, cols]
     
     # filter out flagged documents
     df_filtered = df.loc[~bool_search, cols]
     
-    # return filtered results
-    return df_filtered
+    # return filtered results, removed/flagged results
+    return df_filtered, df_flagged
