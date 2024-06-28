@@ -38,11 +38,13 @@ async def download():
 ui.input_action_button("view", "Browse Data", )
 
 
-@render.data_frame
-@reactive.event(input.view)
-def table_of_rules():
-    df = get_data()
-    return render.DataGrid(df.loc[:, [c for c in SHOW_COLUMNS if c in df.columns]], width="100%")
+with ui.card(full_screen=True):
+    @render.data_frame
+    @reactive.event(input.view)
+    def table_of_rules():
+        df = get_data()
+        return render.DataGrid(df.loc[:, [c for c in SHOW_COLUMNS if c in df.columns]], width="100%", filters=True)
+
 
 if __release__.get('version') is not None:
     ui.tags.footer(f"Version: {__release__.get('version', '')}")
