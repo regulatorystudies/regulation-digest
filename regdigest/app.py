@@ -7,6 +7,8 @@ from shiny import reactive
 from shiny.express import input, render, ui
 
 from retrieve_documents import retrieve_documents
+from regdigest import __release__
+
 
 # end date defaults to today's date
 TODAY = date.today()
@@ -41,6 +43,12 @@ ui.input_action_button("view", "Browse Data", )
 def table_of_rules():
     df = get_data()
     return render.DataGrid(df.loc[:, [c for c in SHOW_COLUMNS if c in df.columns]], width="100%")
+
+if __release__.get('version') is not None:
+    ui.tags.footer(f"Version: {__release__.get('version', '')}")
+
+
+# ----- REACTIVE CALCULATIONS ----- #
 
 
 @reactive.calc
