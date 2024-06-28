@@ -78,7 +78,7 @@ def merge_with_api_results(
         pl_df: pl.DataFrame, 
     ):    
     main_df = pl.from_pandas(pd_df)
-    df = main_df.join(pl_df, on="document_number", how="left", validate="1:1")
+    df = main_df.join(pl_df, on="document_number", how="left", validate="1:1", coalesce=True)
     return df.to_pandas()
 
 
