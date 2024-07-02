@@ -7,8 +7,8 @@ from shiny import reactive
 from shiny.express import input, render, ui
 
 from retrieve_documents import retrieve_documents
-from regdigest import __release__
 
+from _version import __release__
 
 # end date defaults to today's date
 TODAY = date.today()

@@ -1,7 +1,8 @@
-__release__ = {
-    "title": "regulation-digest", 
-    "description": "Program to collect Federal Register documents for the weekly Regulation Digest newsletter.", 
-    "version": "0.4.0", 
-    "author": "Mark Febrizio", 
-    "license": "MIT License"
-    }
+from ._version import __release__
+
+__version__ = __release__.get("version")
+
+__all__ = [
+    "__release__", 
+    "__version__", 
+]
