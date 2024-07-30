@@ -81,12 +81,20 @@ Either supply the end date or press enter to proceed. If an invalid response is 
 
 Finally, the program will retrieve the documents from the Federal Register, format them, and create an CSV file with today's date in the `output/` sub-folder.
 
-## Deploying the Web App
+## Updating and Deploying the Web App
 
 The program was developed as a [web app](https://regulatorystudies.shinyapps.io/regulation-digest/) for distribution using the [Shiny for Python](https://shiny.posit.co/py/) package. The app is deployed using the [shinyapps.io hosted service](https://regulatorystudies.shinyapps.io/regulation-digest/).
 
-After installing and configuring the `rsconnect-python` package (see instructions [here](https://docs.posit.co/shinyapps.io/guide/getting_started/#working-with-shiny-for-python)), you can deploy updates to the app using the `deploy.bat` script in the repository.
+When updates are made to the application code, you will need to deploy a revised version of the web app. To re-deploy the app, please take the following steps:
+
+- Set up your environment and install the required packages.
+- Configure your `rsconnect-python` installation, so you can use it to upload applications to shinyapps.io.
+  - Log in to the regulatorystudies shinyapp.io account, go to Account -> Tokens, and generate a new token (or use an existing token)
+  - Follow the instructions in the [shinyapps.io documentation](https://docs.posit.co/shinyapps.io/guide/getting_started/#working-with-shiny-for-python).
+- Run the `deploy.bat` script, which contains the commands needed to push an updated version of the application.
+  - On Windows, this can be done by navigating to the root directory (`~/regulation-digest/`) and running `& deploy.bat` from the command line.
+  - You can also copy the commands from the script and run them in the terminal directly.
 
 ## Contact
 
-Please reach out to <mfebrizio@gwu.edu> with feedback or questions or open an issue on this repository.
+Please open an issue on this repository if you have feedback or questions.
