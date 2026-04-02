@@ -4,7 +4,7 @@ Mark Febrizio
 
 Created: 2022-06-13
 
-Last modified: 2024-06-07
+Last modified: 2026-04-02
 """
 # dependencies
 from datetime import date
@@ -51,7 +51,8 @@ FIELDS = (
     'type', 
     'action', 
     'regulation_id_number_info', 
-    'correction_of', 
+    'correction_of',
+    'page_length'
     )
 
 
@@ -166,10 +167,11 @@ def retrieve_documents(
         return df_flagged
     df, _ = filter_actions(df, filters = FILTER_ROUTINE, columns = ["title"])
     document_numbers = df.loc[:, "document_number"].to_list()
-    df = get_significant_info(df, start_date, document_numbers)
+    df = get_significant_info(df, start_date, document_numbers, end_date)
     df = df.astype({"independent_reg_agency": "int64"}, errors="ignore")
     df = df.sort_values(["publication_date", "document_number"])
     df = df.rename(columns={"parent_name": "parent_agency_names"}, errors="ignore")
+    df['page_length'] = (df['end_page'] - df['start_page'])+1
     keep_cols = [
         "document_number", 
         "publication_date", 
@@ -186,9 +188,11 @@ def retrieve_documents(
         "rin", 
         "rin_priority", 
         "independent_reg_agency", 
-        "significant", 
+        "significant",
+        'econ_significant',
         "3f1_significant", 
-        "major", 
+        "major",
+        "page_length"
         ]
     
     # return data

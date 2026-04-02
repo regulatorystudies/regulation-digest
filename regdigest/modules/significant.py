@@ -11,7 +11,8 @@ from pandas import (
 
 
 def read_csv_data(
-    start_date: date | str, 
+    start_date: date | str,
+    end_date,
     retrieve_columns: list | tuple = (
         "document_number",
         "significant", 
@@ -24,10 +25,16 @@ def read_csv_data(
     # handle dates formatted as str
     if isinstance(start_date, str):
         start_date = date.fromisoformat(start_date)
+    if isinstance(end_date, str) and end_date:
+        end_date = date.fromisoformat(end_date)
+    if not isinstance(end_date, date):
+        end_date = date.today()
     
-    # drop econ_significant column for dates on or after EO 14094 
-    if start_date >= date.fromisoformat("2023-04-06"):
+    # drop econ_significant column for dates while EO 14094 is active (2023/04/06-2025/01/20)
+    if start_date >= date.fromisoformat("2023-04-06") and end_date <= date.fromisoformat("2025-01-20"):
         cols = [col for col in retrieve_columns if col != "econ_significant"]
+    elif end_date < date.fromisoformat("2023-04-06") or start_date > date.fromisoformat("2025-01-20"):
+        cols = [col for col in retrieve_columns if col != "3(f)(1) significant"]
     else:
         cols = list(retrieve_columns)
     
@@ -41,9 +48,10 @@ def read_csv_data(
     if df.shape[1] == len(cols):
         # rename columns if they exist
         rename_cols = {"3(f)(1) significant": "3f1_significant", "Major": "major"}
-        if all(True if rename in cols else False for rename in rename_cols.keys()):
-            df = df.rename(rename_cols)
-            cols = [rename_cols.get(col, col) for col in cols]
+        applicable_renames = {k: v for k, v in rename_cols.items() if k in cols}
+        if applicable_renames:
+            df = df.rename(applicable_renames)
+            cols = [applicable_renames.get(col, col) for col in cols]
         
         # return unique documents to fix possible manual entry errors in fr-tracking.csv
         return df.unique(subset="document_number", keep="any")
@@ -75,16 +83,16 @@ def clean_data(df: pl.DataFrame,
 
 def merge_with_api_results(
         pd_df: pd_DataFrame, 
-        pl_df: pl.DataFrame, 
+        pl_df: pl.DataFrame
     ):    
     main_df = pl.from_pandas(pd_df)
     df = main_df.join(pl_df, on="document_number", how="left", validate="1:1", coalesce=True)
     return df.to_pandas()
 
 
-def get_significant_info(input_df, start_date, document_numbers):
+def get_significant_info(input_df, start_date, document_numbers, end_date):
     
-    pl_df = read_csv_data(start_date)
+    pl_df = read_csv_data(start_date, end_date)
     if pl_df is None:
         print("Failed to integrate significance tracking data with retrieved documents.")
         return input_df
